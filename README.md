@@ -1,20 +1,57 @@
-<<<<<<< HEAD
-# React + Vite
+# Cooking Recipe Portal
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A responsive web-based Cooking Recipe Portal built using React and Vite.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- User Registration and Login
+- Explore Recipes
+- Search, Filter and Sort Recipes
+- Recipe Details
+- Create and Manage Recipes
+- Ingredients and Cooking Instructions
+- Favorites
+- User Dashboard
+- User Profile
+- Reviews and Ratings
+- Notifications
+- Admin Dashboard
+- Category Management
+- Moderator Dashboard
+- Reports and Review Management
 
-## React Compiler
+## Technologies Used
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React.js
+- JavaScript
+- HTML
+- CSS
+- Vite
+- React Router DOM
+- Local Storage
 
-## Expanding the ESLint configuration
+## Installation
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
-=======
-# cooking_recipe_portal
->>>>>>> 7b4874fc6f1edfa71c7d025244eb0d8010102e7b
+1. Clone the repository.
+2. Open the frontend folder.
+3. Install dependencies:
+
+```bash
+npm install
+```
+
+4. Start the development server:
+
+```bash
+npm run dev
+```
+
+5. Open the localhost URL displayed in the terminal.
+
+## Project Status
+
+Frontend development completed. Backend integration will be handled separately.
+
+## Developer
+
+Joshni Thota
