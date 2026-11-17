@@ -190,6 +190,8 @@ button {
 
 /* Recipe image */
 
+
+/* Recipe image container */
 .recipe-image-container {
     position: relative;
     width: 100%;
@@ -198,15 +200,27 @@ button {
     background: #fff0df;
 }
 
-.recipe-image {
+/* Uploaded recipe image */
+.recipe-image-container img.recipe-image {
     display: block;
     width: 100%;
     height: 190px;
     object-fit: cover;
-    border-radius: 0;
     padding: 0;
-    font-size: 16px;
+    border-radius: 0;
 }
+
+/* Emoji placeholder */
+.recipe-image-container div.recipe-image {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 190px;
+    font-size: 75px;
+    background: #fff0df;
+}
+
 
 /* Favorite heart button */
 
@@ -957,25 +971,7 @@ button {
     }
 }
 
-/* Recipe Emoji Images */
 
-.recipe-image-container {
-    position: relative;
-    width: 100%;
-    height: 190px;
-    overflow: hidden;
-    background: #fff0df;
-}
-
-.recipe-image {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    height: 190px;
-    background: #fff0df;
-    font-size: 75px;
-}
 
 /* =========================
    RATINGS AND REVIEWS
@@ -4853,3 +4849,182 @@ button {
     }
 }
 
+
+.activity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.activity-header select {
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.activity-header h2 {
+    margin: 0;
+}
+
+.activity-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.activity-header select {
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.activity-header h2 {
+    margin: 0;
+}
+
+.custom-date-filter {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    margin: 15px 0;
+}
+
+.custom-date-filter label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-weight: 500;
+}
+
+.custom-date-filter input {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+}
+
+
+/* Recipe Image Preview */
+
+.image-preview-container {
+    margin-top: 20px;
+    padding: 15px;
+    background: #191d2f;
+    border: 1px solid #d9b76e;
+    border-radius: 12px;
+}
+
+.recipe-image-preview {
+    display: block;
+    width: 100%;
+    max-width: 420px;
+    height: 240px;
+    object-fit: cover;
+    border-radius: 10px;
+    margin: 12px 0;
+}
+
+.remove-image-btn {
+    padding: 10px 16px;
+    background: #33394f;
+    color: white;
+    border: 1px solid #d9b76e;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.remove-image-btn:hover {
+    background: #454d66;
+}
+
+.details-recipe-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 250px;
+    object-fit: cover;
+    border-radius: 12px;
+}
+
+.details-recipe-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 250px;
+    font-size: 80px;
+}
+
+/* =========================
+   NOTIFICATION NAVBAR
+========================= */
+
+.notification-nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+}
+
+.notification-badge {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 21px;
+    height: 21px;
+    padding: 2px 6px;
+    background: #dc3545;
+    color: white;
+    border-radius: 50px;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.notification-nav-link:hover .notification-badge {
+    background: #b02a37;
+}
+
+/* Recipe Pagination */
+.recipe-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 30px 0;
+}
+
+.recipe-pagination button {
+    padding: 10px 16px;
+    border: 1px solid #d9b76e;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #191d2f;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.recipe-pagination button:hover:not(:disabled),
+.recipe-pagination button.active-page {
+    background: #d9b76e;
+    color: #101321;
+}
+
+.recipe-pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.recipe-pagination button:focus-visible {
+    outline: 2px solid #101321;
+    outline-offset: 3px;
+}

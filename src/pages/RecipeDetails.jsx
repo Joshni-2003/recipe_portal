@@ -1,129 +1,164 @@
 
 /* eslint-disable react-hooks/set-state-in-effect */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { recipes } from '../data/recipes';
 import ReviewSection from '../components/ReviewSection';
+import './RecipeDetails.css';
 
 function RecipeDetails() {
-
     const { id } = useParams();
 
-    const recipe = recipes.find(
-        (item) => item.id === Number(id)
-    );
+    const recipe = useMemo(() => {
+        if (id?.startsWith('submitted-')) {
+            try {
+                const savedRecipes = JSON.parse(
+                    localStorage.getItem('moderatorRecipes') || '[]'
+                );
 
-    // Servings state
-    const [servings, setServings] = useState(
-        recipe ? recipe.servings || 2 : 2
-    );
+                if (!Array.isArray(savedRecipes)) return null;
 
-    // Cooking timer calculation
-    const totalSeconds = Math.max(
-        1,
-        (parseInt(recipe?.time, 10) || 1) * 60
-    );
+                const submittedId = id.replace('submitted-', '');
+
+                return savedRecipes.find(
+                    item =>
+                        String(item.id) === submittedId &&
+                        item.status === 'Approved'
+                ) || null;
+            } catch (error) {
+                console.error('Unable to load submitted recipe:', error);
+                return null;
+            }
+        }
+
+        return recipes.find(
+            item => String(item.id) === String(id)
+        ) || null;
+    }, [id]);
+
+    const progressKey = `cookingProgress_${id}`;
+
+    const [servings, setServings] = useState(recipe?.servings || 2);
+    const cookingTime = parseInt(
+        recipe?.time || recipe?.cookingTime,
+        10
+    ) || 1;
+    const totalSeconds = Math.max(1, cookingTime * 60);
 
     const [elapsedSeconds, setElapsedSeconds] = useState(0);
     const [isRunning, setIsRunning] = useState(false);
-
-    // Ingredients checklist
     const [checkedIngredients, setCheckedIngredients] = useState({});
-
-    // Cooking instructions checklist
     const [completedSteps, setCompletedSteps] = useState({});
-
-    // Track saved progress loading
     const [progressLoadedFor, setProgressLoadedFor] = useState(null);
+    const [imageError, setImageError] = useState(false);
+    const [progressError, setProgressError] = useState('');
 
-    // Recipe ingredients and instructions
-    const ingredients = recipe?.ingredients || [];
-    const instructions = recipe?.instructions || [];
+    const ingredients = Array.isArray(recipe?.ingredients)
+        ? recipe.ingredients
+        : [];
 
-    // Format cooking time
+    const instructions = Array.isArray(recipe?.instructions)
+        ? recipe.instructions.map(step =>
+            typeof step === 'string'
+                ? step
+                : step?.instruction || step?.text || ''
+        ).filter(Boolean)
+        : [];
+
+    const dietaryTags = Array.isArray(recipe?.dietaryTags)
+        ? recipe.dietaryTags
+        : [];
+
+    const allergens = Array.isArray(recipe?.allergens)
+        ? recipe.allergens
+        : [];
+
     function formatDuration(value) {
-
         if (value === undefined || value === null || value === '') {
             return 'Not specified';
         }
 
         const time = String(value).trim();
 
-        if (/minutes?|mins?/i.test(time)) {
-            return time;
-        }
+        if (/minutes?|mins?/i.test(time)) return time;
 
         return `${time} minutes`;
     }
 
-    // Load saved cooking progress
     useEffect(() => {
-
         if (!recipe) return;
 
-        const storageKey = `cookingProgress_${recipe.id}`;
+        setIsRunning(false);
+        setImageError(false);
+        setProgressError('');
 
-        const savedProgress = localStorage.getItem(storageKey);
+        try {
+            const savedProgress = localStorage.getItem(progressKey);
 
-        if (savedProgress) {
-
-            try {
-
+            if (savedProgress) {
                 const progressData = JSON.parse(savedProgress);
 
+                if (
+                    !progressData ||
+                    typeof progressData !== 'object' ||
+                    Array.isArray(progressData)
+                ) {
+                    throw new Error('Invalid saved progress data');
+                }
+
                 setCheckedIngredients(
-                    progressData.checkedIngredients || {}
+                    progressData.checkedIngredients &&
+                    typeof progressData.checkedIngredients === 'object'
+                        ? progressData.checkedIngredients
+                        : {}
                 );
 
                 setCompletedSteps(
-                    progressData.completedSteps || {}
+                    progressData.completedSteps &&
+                    typeof progressData.completedSteps === 'object'
+                        ? progressData.completedSteps
+                        : {}
                 );
+
+                const savedTime = Number(progressData.elapsedSeconds);
 
                 setElapsedSeconds(
-                    progressData.elapsedSeconds || 0
+                    Number.isFinite(savedTime)
+                        ? Math.max(0, Math.min(savedTime, totalSeconds))
+                        : 0
                 );
+
+                const savedServings = Number(progressData.servings);
 
                 setServings(
-                    progressData.servings || recipe.servings || 2
+                    Number.isFinite(savedServings) && savedServings >= 1
+                        ? savedServings
+                        : recipe.servings || 2
                 );
-
-            } catch (error) {
-
-                console.error(
-                    'Unable to load saved progress:',
-                    error
-                );
-
+            } else {
                 setCheckedIngredients({});
                 setCompletedSteps({});
                 setElapsedSeconds(0);
                 setServings(recipe.servings || 2);
-
             }
-
-        } else {
+        } catch (error) {
+            console.error('Unable to load saved progress:', error);
 
             setCheckedIngredients({});
             setCompletedSteps({});
             setElapsedSeconds(0);
             setServings(recipe.servings || 2);
-
+            setProgressError(
+                'Saved cooking progress could not be loaded. You can start again.'
+            );
         }
 
-        setIsRunning(false);
-        setProgressLoadedFor(recipe.id);
+        setProgressLoadedFor(id);
+    }, [id, progressKey, recipe, totalSeconds]);
 
-    }, [recipe]);
-
-    // Save cooking progress automatically
     useEffect(() => {
-
-        if (!recipe) return;
-
-        if (progressLoadedFor !== recipe.id) return;
-
-        const storageKey = `cookingProgress_${recipe.id}`;
+        if (!recipe || progressLoadedFor !== id) return;
 
         const progressData = {
             checkedIngredients,
@@ -132,12 +167,18 @@ function RecipeDetails() {
             servings
         };
 
-        localStorage.setItem(
-            storageKey,
-            JSON.stringify(progressData)
-        );
-
+        try {
+            localStorage.setItem(progressKey, JSON.stringify(progressData));
+            setProgressError('');
+        } catch (error) {
+            console.error('Unable to save cooking progress:', error);
+            setProgressError(
+                'Unable to save your cooking progress. Please check browser storage.'
+            );
+        }
     }, [
+        id,
+        progressKey,
         recipe,
         progressLoadedFor,
         checkedIngredients,
@@ -146,68 +187,64 @@ function RecipeDetails() {
         servings
     ]);
 
-    // Cooking timer
     useEffect(() => {
-
         if (!isRunning) return;
 
         const timer = setInterval(() => {
-
-            setElapsedSeconds((previous) =>
+            setElapsedSeconds(previous =>
                 Math.min(previous + 1, totalSeconds)
             );
-
         }, 1000);
 
         return () => clearInterval(timer);
-
     }, [isRunning, totalSeconds]);
 
-    // Stop timer when completed
     useEffect(() => {
-
         if (elapsedSeconds >= totalSeconds) {
             setIsRunning(false);
         }
-
     }, [elapsedSeconds, totalSeconds]);
 
-    // Recipe not found
     if (!recipe) {
-
         return (
-            <div className="recipe-not-found">
-
-                <h2>Recipe Not Found!</h2>
-
-                <p>
-                    Sorry, the recipe you are looking for does not exist.
-                </p>
-
-                <Link to="/recipes">
-                    Back to Recipes
+            <div className="rd-message">
+                <span>🍽️</span>
+                <h2>Recipe Not Found</h2>
+                <p>This recipe does not exist or is not available.</p>
+                <Link to="/recipes" className="rd-primary-link">
+                    Explore Recipes
                 </Link>
-
             </div>
         );
     }
 
-    // Calculate ingredient quantity
+    if (progressLoadedFor !== id) {
+        return (
+            <div className="rd-message">
+                <span>👩‍🍳</span>
+                <h2>Preparing your kitchen...</h2>
+                <p>Please wait while your cooking progress is loaded.</p>
+            </div>
+        );
+    }
+
     function calculateQuantity(quantity) {
+        if (
+            quantity === undefined ||
+            quantity === null ||
+            quantity === ''
+        ) return '';
 
-        const originalServings = recipe.servings || 1;
+        const originalServings = Number(recipe.servings) || 1;
+        const result = Number(quantity) * servings / originalServings;
 
-        const result =
-            Number(quantity) * servings / originalServings;
+        if (Number.isNaN(result)) return quantity;
 
         return Number(result.toFixed(2));
     }
 
-    // Format timer
     function formatTime(seconds) {
-
         const minutes = Math.floor(seconds / 60);
-
         const remainingSeconds = seconds % 60;
 
         return `${String(minutes).padStart(2, '0')}:${String(
@@ -215,687 +252,635 @@ function RecipeDetails() {
         ).padStart(2, '0')}`;
     }
 
-    // Timer progress
-    const progress = Math.round(
-        (elapsedSeconds / totalSeconds) * 100
-    );
+    const progress = Math.round((elapsedSeconds / totalSeconds) * 100);
 
-    // Reset timer
     function resetTimer() {
-
         setIsRunning(false);
         setElapsedSeconds(0);
-
     }
 
-    // Print recipe
     function printRecipe() {
-
         window.print();
-
     }
 
-    // Download recipe as PDF
     function downloadRecipePDF() {
-
         window.print();
-
     }
 
-    // Copy recipe link
     async function copyRecipeLink() {
-
-        const recipeUrl = window.location.href;
-
         try {
-
-            await navigator.clipboard.writeText(recipeUrl);
-
+            await navigator.clipboard.writeText(window.location.href);
             alert('Recipe link copied successfully!');
-
         } catch {
-
             alert(
                 'Unable to copy the link. Copy it from the browser address bar.'
             );
-
         }
     }
 
-    // Share on WhatsApp
     function shareOnWhatsApp() {
-
-        const recipeUrl = window.location.href;
-
         const message =
-            `Check out this delicious recipe: ${recipe.name} ${recipeUrl}`;
+            `Check out this delicious recipe: ${recipe.name} ${window.location.href}`;
 
         window.open(
             `https://wa.me/?text=${encodeURIComponent(message)}`,
             '_blank',
             'noopener,noreferrer'
         );
-
     }
 
-    // Share on Facebook
     function shareOnFacebook() {
-
-        const recipeUrl = window.location.href;
-
         window.open(
-            `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(recipeUrl)}`,
+            `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(window.location.href)}`,
             '_blank',
             'noopener,noreferrer'
         );
-
     }
 
-    // Share through Gmail
     function shareByEmail() {
-
-        const recipeUrl = window.location.href;
-
         const subject = `Try this recipe: ${recipe.name}`;
-
         const body =
-            `Hello! Check out this delicious recipe: ${recipe.name}\n\n${recipeUrl}`;
+            `Hello! Check out this delicious recipe: ${recipe.name}\n\n${window.location.href}`;
 
         const gmailUrl =
             `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
-        window.open(
-            gmailUrl,
-            '_blank',
-            'noopener,noreferrer'
-        );
-
+        window.open(gmailUrl, '_blank', 'noopener,noreferrer');
     }
 
-    // Toggle ingredient checkbox
     function toggleIngredient(index) {
-
-        setCheckedIngredients((previous) => ({
-
+        setCheckedIngredients(previous => ({
             ...previous,
-
             [index]: !previous[index]
-
         }));
-
     }
 
-    // Reset ingredient checklist
     function resetIngredientChecklist() {
-
         setCheckedIngredients({});
-
     }
 
-    // Completed ingredients
     const completedIngredients = Object.values(
         checkedIngredients
     ).filter(Boolean).length;
 
-    // Total ingredients
     const totalIngredients = ingredients.length;
 
-    // Ingredient progress
     const ingredientProgress = totalIngredients > 0
-        ? Math.round(
-            (completedIngredients / totalIngredients) * 100
-        )
+        ? Math.round((completedIngredients / totalIngredients) * 100)
         : 0;
 
-    // Toggle cooking step
     function toggleStep(index) {
-
-        setCompletedSteps((previous) => ({
-
+        setCompletedSteps(previous => ({
             ...previous,
-
             [index]: !previous[index]
-
         }));
-
     }
 
-    // Reset cooking steps
     function resetStepsChecklist() {
-
         setCompletedSteps({});
-
     }
 
-    // Completed steps
     const completedStepsCount = Object.values(
         completedSteps
     ).filter(Boolean).length;
 
-    // Total steps
     const totalSteps = instructions.length;
 
-    // Steps progress
     const stepsProgress = totalSteps > 0
-        ? Math.round(
-            (completedStepsCount / totalSteps) * 100
-        )
+        ? Math.round((completedStepsCount / totalSteps) * 100)
         : 0;
 
-    // Clear all saved progress
     function clearSavedProgress() {
-
-        const storageKey = `cookingProgress_${recipe.id}`;
-
-        localStorage.removeItem(storageKey);
-
-        setCheckedIngredients({});
-        setCompletedSteps({});
-        setElapsedSeconds(0);
-        setIsRunning(false);
-        setServings(recipe.servings || 2);
-
+        try {
+            localStorage.removeItem(progressKey);
+            setCheckedIngredients({});
+            setCompletedSteps({});
+            setElapsedSeconds(0);
+            setIsRunning(false);
+            setServings(recipe.servings || 2);
+            setProgressError('');
+        } catch (error) {
+            console.error('Unable to clear saved progress:', error);
+            setProgressError(
+                'Unable to clear saved progress. Please try again.'
+            );
+        }
     }
 
-    // Overall cooking progress
     const totalTasks = totalIngredients + totalSteps;
-
-    const completedTasks =
-        completedIngredients + completedStepsCount;
+    const completedTasks = completedIngredients + completedStepsCount;
 
     const overallProgress = totalTasks > 0
-        ? Math.round(
-            (completedTasks / totalTasks) * 100
-        )
+        ? Math.round((completedTasks / totalTasks) * 100)
         : 0;
 
-    // Recipe completion achievement
     const isRecipeCompleted =
         totalTasks > 0 && overallProgress === 100;
 
+    const hasRecipeImage =
+        typeof recipe.image === 'string' &&
+        (
+            recipe.image.startsWith('data:image/') ||
+            recipe.image.startsWith('http://') ||
+            recipe.image.startsWith('https://')
+        );
+
     return (
+        <main className="rd-page">
+            <div className="rd-container">
 
-        <div className="details-page">
-
-            {/* Recipe Header */}
-
-            <section className="details-header">
-
-                <div className="details-image">
-                    {recipe.image}
+                <div className="rd-breadcrumb no-print">
+                    <Link to="/">Home</Link>
+                    <span>/</span>
+                    <Link to="/recipes">Explore Recipes</Link>
+                    <span>/</span>
+                    <span>{recipe.name}</span>
                 </div>
 
-                <div className="recipe-heading">
-
-                    <h1>{recipe.name}</h1>
-
-                    <p className="recipe-description">
-                        {recipe.description}
-                    </p>
-
-                    <div className="recipe-meta">
-
-                        <span>📂 {recipe.category}</span>
-
-                        <span>🌍 {recipe.cuisine}</span>
-
-                        <span>
-                            ⏱️ Preparation: {formatDuration(recipe.preparationTime)}
+                {/* Recipe hero */}
+                <section className="rd-hero">
+                    <div className="rd-hero-image">
+                        {hasRecipeImage && !imageError ? (
+                            <img
+                                src={recipe.image}
+                                alt={recipe.name || 'Recipe'}
+                                onError={() => setImageError(true)}
+                            />
+                        ) : (
+                            <div className="rd-image-placeholder">
+                                {hasRecipeImage ? '🍲' : recipe.image || '🍲'}
+                            </div>
+                        )}
+                        <span className="rd-image-label">
+                            MADE WITH LOVE
                         </span>
-
-                        <span>
-                            🍳 Cooking: {formatDuration(recipe.time)}
-                        </span>
-
-                        <span>
-                            ⭐ Difficulty: {recipe.difficulty || 'Not specified'}
-                        </span>
-
                     </div>
 
-                </div>
-
-            </section>
-
-            {/* Cooking Timer */}
-
-            <section className="cooking-timer-section no-print">
-
-                <h2>⏱️ Cooking Time Progress</h2>
-
-                <p>
-                    Estimated Cooking Time: {formatDuration(recipe.time)}
-                </p>
-
-                <h3 className="timer-display">
-                    {formatTime(elapsedSeconds)}
-                </h3>
-
-                <div className="progress-container">
-
-                    <div
-                        className="progress-bar"
-                        style={{ width: `${progress}%` }}
-                    ></div>
-
-                </div>
-
-                <p className="progress-text">
-                    {progress}% Completed
-                </p>
-
-                {progress === 100 && (
-
-                    <h3 className="cooking-completed">
-                        🎉 Cooking Completed!
-                    </h3>
-
-                )}
-
-                <div className="timer-buttons">
-
-                    <button
-                        onClick={() => setIsRunning(true)}
-                        disabled={isRunning || progress === 100}
-                    >
-                        {progress === 100 ? 'Completed' : 'Start Cooking'}
-                    </button>
-
-                    <button
-                        onClick={() => setIsRunning(false)}
-                        disabled={!isRunning}
-                    >
-                        Pause
-                    </button>
-
-                    <button onClick={resetTimer}>
-                        Reset
-                    </button>
-
-                </div>
-
-            </section>
-
-            {/* Print and Download PDF */}
-
-            <div className="print-recipe-section no-print">
-
-                <button onClick={printRecipe}>
-                    🖨️ Print Recipe
-                </button>
-
-                <button onClick={downloadRecipePDF}>
-                    📥 Download Recipe as PDF
-                </button>
-
-            </div>
-
-            {/* Servings */}
-
-            <section className="servings-section">
-
-                <h2>Adjust Servings</h2>
-
-                <div className="servings-controls">
-
-                    <button
-                        type="button"
-                        onClick={() => {
-
-                            if (servings > 1) {
-                                setServings(servings - 1);
-                            }
-
-                        }}
-                        disabled={servings <= 1}
-                        aria-label="Decrease servings"
-                    >
-                        -
-                    </button>
-
-                    <span>{servings} Servings</span>
-
-                    <button
-                        type="button"
-                        onClick={() => setServings(servings + 1)}
-                        aria-label="Increase servings"
-                    >
-                        +
-                    </button>
-
-                </div>
-
-            </section>
-
-            {/* Ingredients Checklist */}
-
-            <section className="details-section">
-
-                <h2>🥕 Ingredients Checklist</h2>
-
-                <p>
-                    Select the ingredients as you collect them.
-                </p>
-
-                <div className="ingredient-progress-info">
-
-                    <strong>
-                        {completedIngredients} / {totalIngredients} Ingredients Completed
-                    </strong>
-
-                    <span>{ingredientProgress}%</span>
-
-                </div>
-
-                <div className="ingredient-check-progress">
-
-                    <div
-                        className="ingredient-check-bar"
-                        style={{ width: `${ingredientProgress}%` }}
-                    ></div>
-
-                </div>
-
-                <ul className="ingredient-list">
-
-                    {ingredients.map((ingredient, index) => (
-
-                        <li
-                            key={index}
-                            className={
-                                checkedIngredients[index]
-                                    ? 'ingredient-completed'
-                                    : ''
-                            }
-                        >
-
-                            <label className="ingredient-checkbox">
-
-                                <input
-                                    type="checkbox"
-                                    checked={!!checkedIngredients[index]}
-                                    onChange={() => toggleIngredient(index)}
-                                />
-
-                                <span>{ingredient.name}</span>
-
-                            </label>
-
-                            <strong>
-                                {calculateQuantity(ingredient.quantity)} {ingredient.unit}
-                            </strong>
-
-                        </li>
-
-                    ))}
-
-                </ul>
-
-                <button
-                    type="button"
-                    className="reset-ingredient-btn no-print"
-                    onClick={resetIngredientChecklist}
-                >
-                    Reset Checklist
-                </button>
-
-                {ingredientProgress === 100 && totalIngredients > 0 && (
-
-                    <h3 className="ingredient-success">
-                        🎉 All ingredients are ready!
-                    </h3>
-
-                )}
-
-            </section>
-
-            {/* Cooking Instructions Checklist */}
-
-            <section className="details-section">
-
-                <h2>👩‍🍳 Cooking Instructions Checklist</h2>
-
-                <p>
-                    Tick each step after completing it.
-                </p>
-
-                <div className="steps-progress-info">
-
-                    <strong>
-                        {completedStepsCount} / {totalSteps} Steps Completed
-                    </strong>
-
-                    <span>{stepsProgress}%</span>
-
-                </div>
-
-                <div className="steps-check-progress">
-
-                    <div
-                        className="steps-check-bar"
-                        style={{ width: `${stepsProgress}%` }}
-                    ></div>
-
-                </div>
-
-                <ol className="instruction-list">
-
-                    {instructions.map((step, index) => (
-
-                        <li
-                            key={index}
-                            className={
-                                completedSteps[index]
-                                    ? 'step-completed'
-                                    : ''
-                            }
-                        >
-
-                            <label className="step-checkbox">
-
-                                <input
-                                    type="checkbox"
-                                    checked={!!completedSteps[index]}
-                                    onChange={() => toggleStep(index)}
-                                />
-
-                                <span>Step {index + 1}</span>
-
-                            </label>
-
-                            <p>{step}</p>
-
-                        </li>
-
-                    ))}
-
-                </ol>
-
-                <button
-                    type="button"
-                    className="reset-steps-btn no-print"
-                    onClick={resetStepsChecklist}
-                >
-                    Reset Steps
-                </button>
-
-                {stepsProgress === 100 && totalSteps > 0 && (
-
-                    <h3 className="steps-success">
-                        🎉 Congratulations! You completed all cooking steps!
-                    </h3>
-
-                )}
-
-                {/* Clear Saved Progress */}
-
-                <button
-                    type="button"
-                    className="clear-progress-btn no-print"
-                    onClick={clearSavedProgress}
-                >
-                    🗑️ Clear All Saved Progress
-                </button>
-
-            </section>
-
-            {/* Cooking Summary and Achievement */}
-
-            <section className="cooking-summary-section">
-
-                <h2>🏆 Cooking Completion Summary</h2>
-
-                <p>
-                    Track your complete cooking progress here.
-                </p>
-
-                <div className="summary-progress-info">
-
-                    <strong>Overall Cooking Progress</strong>
-
-                    <span>{overallProgress}%</span>
-
-                </div>
-
-                <div className="summary-progress-container">
-
-                    <div
-                        className="summary-progress-bar"
-                        style={{ width: `${overallProgress}%` }}
-                    ></div>
-
-                </div>
-
-                <div className="summary-stats">
-
-                    <div className="summary-card">
-
-                        <h3>🥕 Ingredients</h3>
-
-                        <p>
-                            {completedIngredients} / {totalIngredients}
+                    <div className="rd-hero-content">
+                        <span className="rd-eyebrow">
+                            <span></span> YOUR NEXT KITCHEN FAVOURITE
+                        </span>
+
+                        <h1>{recipe.name || 'Untitled Recipe'}</h1>
+
+                        <p className="rd-description">
+                            {recipe.description ||
+                                'A delicious recipe waiting to be prepared and enjoyed.'}
                         </p>
 
-                        <span>Completed</span>
+                        <div className="rd-meta-grid">
+                            <div className="rd-meta-item">
+                                <span className="rd-meta-icon">⏱</span>
+                                <div>
+                                    <small>Preparation</small>
+                                    <strong>
+                                        {formatDuration(
+                                            recipe.preparationTime || recipe.prepTime
+                                        )}
+                                    </strong>
+                                </div>
+                            </div>
 
-                    </div>
+                            <div className="rd-meta-item">
+                                <span className="rd-meta-icon">🍳</span>
+                                <div>
+                                    <small>Cooking time</small>
+                                    <strong>
+                                        {formatDuration(
+                                            recipe.time || recipe.cookingTime
+                                        )}
+                                    </strong>
+                                </div>
+                            </div>
 
-                    <div className="summary-card">
-
-                        <h3>👩‍🍳 Cooking Steps</h3>
-
-                        <p>
-                            {completedStepsCount} / {totalSteps}
-                        </p>
-
-                        <span>Completed</span>
-
-                    </div>
-
-                </div>
-
-                {/* Achievement Badge */}
-
-                {isRecipeCompleted ? (
-
-                    <div className="achievement-section">
-
-                        <div className="achievement-badge">
-                            🏆
+                            <div className="rd-meta-item">
+                                <span className="rd-meta-icon">📊</span>
+                                <div>
+                                    <small>Difficulty</small>
+                                    <strong>{recipe.difficulty || 'Not specified'}</strong>
+                                </div>
+                            </div>
                         </div>
 
-                        <h2>Master Chef Achievement Unlocked!</h2>
+                        <div className="rd-tags">
+                            <span>{recipe.category || 'Recipe'}</span>
+                            <span>{recipe.cuisine || 'Home cooking'}</span>
+                        </div>
 
-                        <h3>🎉 Congratulations!</h3>
+                        <div className="rd-hero-actions no-print">
+                            <button onClick={printRecipe}>
+                                <span>🖨</span> Print Recipe
+                            </button>
+                            <button
+                                className="rd-outline-button"
+                                onClick={copyRecipeLink}
+                            >
+                                <span>🔗</span> Copy Recipe Link
+                            </button>
+                        </div>
+                    </div>
+                </section>
 
+                {/* Quick overview */}
+                <section className="rd-overview">
+                    <div>
+                        <span>🥕</span>
+                        <p><strong>{totalIngredients}</strong><small>Ingredients</small></p>
+                    </div>
+                    <div>
+                        <span>👩‍🍳</span>
+                        <p><strong>{totalSteps}</strong><small>Cooking steps</small></p>
+                    </div>
+                    <div>
+                        <span>🍽️</span>
+                        <p><strong>{servings}</strong><small>Servings</small></p>
+                    </div>
+                    <div>
+                        <span>⏰</span>
                         <p>
-                            You successfully completed all ingredients
-                            and cooking instructions.
+                            <strong>{formatDuration(recipe.time || recipe.cookingTime)}</strong>
+                            <small>Cooking time</small>
                         </p>
+                    </div>
+                </section>
 
-                        <h3>🍽️ You are a Master Chef!</h3>
+                {/* Main recipe layout */}
+                <div className="rd-content-grid">
+                    <div className="rd-main-column">
 
-                        <span className="achievement-label">
-                            RECIPE COMPLETED
-                        </span>
+                        {/* Ingredients */}
+                        <section className="rd-card rd-ingredients-section">
+                            <div className="rd-section-heading">
+                                <div>
+                                    <span className="rd-section-kicker">GET EVERYTHING READY</span>
+                                    <h2>🥕 Ingredients</h2>
+                                    <p>Check off each ingredient as you prepare it.</p>
+                                </div>
+                                <span className="rd-count-badge">
+                                    {completedIngredients}/{totalIngredients}
+                                </span>
+                            </div>
 
+                            <div className="rd-servings-control">
+                                <span>Adjust servings</span>
+                                <div>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setServings(previous => Math.max(1, previous - 1))
+                                        }
+                                        disabled={servings <= 1}
+                                        aria-label="Decrease servings"
+                                    >
+                                        −
+                                    </button>
+                                    <strong>{servings}</strong>
+                                    <button
+                                        type="button"
+                                        onClick={() => setServings(previous => previous + 1)}
+                                        aria-label="Increase servings"
+                                    >
+                                        +
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="rd-progress-label">
+                                <span>Ingredient preparation</span>
+                                <strong>{ingredientProgress}%</strong>
+                            </div>
+                            <div className="rd-progress-track">
+                                <div
+                                    className="rd-progress-fill"
+                                    style={{ width: `${ingredientProgress}%` }}
+                                />
+                            </div>
+
+                            {totalIngredients > 0 ? (
+                                <ul className="rd-ingredient-list">
+                                    {ingredients.map((ingredient, index) => {
+                                        const ingredientName =
+                                            typeof ingredient === 'string'
+                                                ? ingredient
+                                                : ingredient?.name || 'Unnamed ingredient';
+
+                                        const quantity =
+                                            typeof ingredient === 'string'
+                                                ? ''
+                                                : calculateQuantity(ingredient?.quantity);
+
+                                        const unit =
+                                            typeof ingredient === 'string'
+                                                ? ''
+                                                : ingredient?.unit || '';
+
+                                        return (
+                                            <li
+                                                key={index}
+                                                className={
+                                                    checkedIngredients[index]
+                                                        ? 'rd-item-done'
+                                                        : ''
+                                                }
+                                            >
+                                                <label>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!checkedIngredients[index]}
+                                                        onChange={() => toggleIngredient(index)}
+                                                    />
+                                                    <span className="rd-custom-check"></span>
+                                                    <span className="rd-ingredient-name">
+                                                        {ingredientName}
+                                                    </span>
+                                                </label>
+                                                <strong>
+                                                    {[quantity, unit].filter(Boolean).join(' ')}
+                                                </strong>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            ) : (
+                                <p className="rd-empty">
+                                    No ingredients have been added yet.
+                                </p>
+                            )}
+
+                            <div className="rd-card-footer no-print">
+                                <span>
+                                    {ingredientProgress === 100
+                                        ? '🎉 All ingredients are ready!'
+                                        : 'Take your time and prepare everything.'}
+                                </span>
+                                <button onClick={resetIngredientChecklist}>
+                                    Reset checklist
+                                </button>
+                            </div>
+                        </section>
+
+                        {/* Instructions */}
+                        <section className="rd-card rd-instructions-section">
+                            <div className="rd-section-heading">
+                                <div>
+                                    <span className="rd-section-kicker">LET'S START COOKING</span>
+                                    <h2>👩‍🍳 Cooking Instructions</h2>
+                                    <p>Follow each step and mark it as completed.</p>
+                                </div>
+                                <span className="rd-count-badge">
+                                    {completedStepsCount}/{totalSteps}
+                                </span>
+                            </div>
+
+                            <div className="rd-progress-label">
+                                <span>Cooking progress</span>
+                                <strong>{stepsProgress}%</strong>
+                            </div>
+                            <div className="rd-progress-track">
+                                <div
+                                    className="rd-progress-fill"
+                                    style={{ width: `${stepsProgress}%` }}
+                                />
+                            </div>
+
+                            {totalSteps > 0 ? (
+                                <ol className="rd-step-list">
+                                    {instructions.map((step, index) => (
+                                        <li
+                                            key={index}
+                                            className={
+                                                completedSteps[index]
+                                                    ? 'rd-step-done'
+                                                    : ''
+                                            }
+                                        >
+                                            <div className="rd-step-number">
+                                                {completedSteps[index] ? '✓' : index + 1}
+                                            </div>
+                                            <div className="rd-step-content">
+                                                <label>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={!!completedSteps[index]}
+                                                        onChange={() => toggleStep(index)}
+                                                    />
+                                                    <span>
+                                                        {completedSteps[index]
+                                                            ? 'Completed'
+                                                            : `Step ${index + 1}`}
+                                                    </span>
+                                                </label>
+                                                <p>{step}</p>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ol>
+                            ) : (
+                                <p className="rd-empty">
+                                    No cooking instructions have been added yet.
+                                </p>
+                            )}
+
+                            <div className="rd-card-footer no-print">
+                                <span>
+                                    {stepsProgress === 100
+                                        ? '🎉 You completed every cooking step!'
+                                        : 'One step at a time. You are doing great!'}
+                                </span>
+                                <button onClick={resetStepsChecklist}>
+                                    Reset steps
+                                </button>
+                            </div>
+                        </section>
+
+                        {/* Dietary details */}
+                        <section className="rd-card rd-dietary-section">
+                            <span className="rd-section-kicker">KNOW WHAT'S ON YOUR PLATE</span>
+                            <h2>🥗 Dietary Information</h2>
+
+                            <div className="rd-dietary-columns">
+                                <div>
+                                    <h3>Dietary tags</h3>
+                                    {dietaryTags.length > 0 ? (
+                                        <div className="rd-tag-list">
+                                            {dietaryTags.map((tag, index) => (
+                                                <span key={`${tag}-${index}`}>{tag}</span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="rd-empty">
+                                            No dietary tags added.
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <h3>⚠️ Allergens</h3>
+                                    {allergens.length > 0 ? (
+                                        <div className="rd-tag-list rd-allergen-list">
+                                            {allergens.map((allergen, index) => (
+                                                <span key={`${allergen}-${index}`}>
+                                                    ⚠️ {allergen}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="rd-empty">
+                                            No allergen details added.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <p className="rd-disclaimer">
+                                Please check all ingredients and product labels carefully
+                                if you have food allergies.
+                            </p>
+                        </section>
                     </div>
 
-                ) : (
+                    {/* Sidebar */}
+                    <aside className="rd-sidebar">
 
-                    <div className="cooking-pending-message">
+                        {/* Timer */}
+                        <section className="rd-card rd-timer-card no-print">
+                            <span className="rd-section-kicker">YOUR KITCHEN TIMER</span>
+                            <h2>⏱ Cooking Timer</h2>
+                            <p className="rd-timer-caption">
+                                Estimated time: {formatDuration(
+                                    recipe.time || recipe.cookingTime
+                                )}
+                            </p>
 
-                        <p>
-                            Keep going! Complete the remaining ingredients and steps.
-                        </p>
+                            <div className="rd-timer-circle">
+                                <div>
+                                    <strong>{formatTime(elapsedSeconds)}</strong>
+                                    <span>{progress}% completed</span>
+                                </div>
+                            </div>
 
-                        <strong>
-                            {totalTasks - completedTasks} tasks remaining.
-                        </strong>
+                            <div className="rd-progress-track rd-timer-track">
+                                <div
+                                    className="rd-progress-fill"
+                                    style={{ width: `${progress}%` }}
+                                />
+                            </div>
 
-                    </div>
+                            {progress === 100 && (
+                                <p className="rd-timer-complete">
+                                    🎉 Cooking time completed!
+                                </p>
+                            )}
 
-                )}
+                            <div className="rd-timer-buttons">
+                                <button
+                                    className="rd-timer-start"
+                                    onClick={() => setIsRunning(true)}
+                                    disabled={isRunning || progress === 100}
+                                >
+                                    {progress === 100 ? 'Completed' : '▶ Start'}
+                                </button>
+                                <button
+                                    onClick={() => setIsRunning(false)}
+                                    disabled={!isRunning}
+                                >
+                                    Pause
+                                </button>
+                                <button onClick={resetTimer}>Reset</button>
+                            </div>
+                        </section>
 
-            </section>
+                        {/* Overall summary */}
+                        <section className="rd-card rd-summary-card">
+                            <span className="rd-section-kicker">YOUR COOKING JOURNEY</span>
+                            <h2>🏆 Progress Summary</h2>
 
-            {/* Recipe Sharing */}
+                            <div className="rd-summary-number">
+                                <strong>{overallProgress}%</strong>
+                                <span>Overall completed</span>
+                            </div>
 
-            <section className="recipe-sharing-section no-print">
+                            <div className="rd-progress-track">
+                                <div
+                                    className="rd-progress-fill"
+                                    style={{ width: `${overallProgress}%` }}
+                                />
+                            </div>
 
-                <h2>📤 Share This Recipe</h2>
+                            <div className="rd-summary-row">
+                                <span>🥕 Ingredients</span>
+                                <strong>{completedIngredients}/{totalIngredients}</strong>
+                            </div>
+                            <div className="rd-summary-row">
+                                <span>👩‍🍳 Cooking steps</span>
+                                <strong>{completedStepsCount}/{totalSteps}</strong>
+                            </div>
 
-                <p>
-                    Loved this recipe? Share it with your friends and family!
-                </p>
+                            {isRecipeCompleted ? (
+                                <div className="rd-achievement">
+                                    <span>🏆</span>
+                                    <h3>Master Chef!</h3>
+                                    <p>You completed this recipe. Congratulations!</p>
+                                    <small>RECIPE COMPLETED</small>
+                                </div>
+                            ) : (
+                                <div className="rd-pending">
+                                    <strong>
+                                        {totalTasks - completedTasks} tasks remaining
+                                    </strong>
+                                    <p>Keep going! Your delicious result is waiting.</p>
+                                </div>
+                            )}
 
-                <div className="sharing-buttons">
+                            <button
+                                className="rd-clear-progress no-print"
+                                onClick={clearSavedProgress}
+                            >
+                                Clear all saved progress
+                            </button>
+                        </section>
 
-                    <button onClick={copyRecipeLink}>
-                        🔗 Copy Link
-                    </button>
+                        {/* Share */}
+                        <section className="rd-card rd-share-card no-print">
+                            <span className="rd-section-kicker">SPREAD THE DELICIOUSNESS</span>
+                            <h2>📤 Share Recipe</h2>
+                            <p>Share this recipe with friends and family.</p>
 
-                    <button onClick={shareOnWhatsApp}>
-                        💬 WhatsApp
-                    </button>
-
-                    <button onClick={shareOnFacebook}>
-                        📘 Facebook
-                    </button>
-
-                    <button onClick={shareByEmail}>
-                        ✉️ Email
-                    </button>
-
+                            <button onClick={copyRecipeLink}>🔗 Copy Link</button>
+                            <button onClick={shareOnWhatsApp}>💬 WhatsApp</button>
+                            <button onClick={shareOnFacebook}>📘 Facebook</button>
+                            <button onClick={shareByEmail}>✉️ Email</button>
+                            <button onClick={downloadRecipePDF}>📥 Save as PDF</button>
+                        </section>
+                    </aside>
                 </div>
 
-            </section>
+                {progressError && (
+                    <p className="rd-error no-print" role="alert">
+                        {progressError}
+                    </p>
+                )}
 
-            {/* Back Button */}
+                <div className="rd-back-link no-print">
+                    <Link to="/recipes">← Back to Explore Recipes</Link>
+                </div>
 
-            <div className="back-button no-print">
+                <section className="rd-reviews no-print">
+                    <div className="rd-reviews-heading">
+                        <span className="rd-section-kicker">YOUR THOUGHTS MATTER</span>
+                        <h2>💬 Recipe Reviews</h2>
+                        <p>Share your experience and see what others think.</p>
+                    </div>
 
-                <Link to="/recipes">
-                    ← Back to Explore Recipes
-                </Link>
-
+                    <ReviewSection
+                        key={recipe.id}
+                        recipeId={recipe.id}
+                        recipeName={recipe.name}
+                    />
+                </section>
             </div>
-
-            {/* Reviews */}
-
-            <div className="no-print">
-
-                <ReviewSection
-                    key={recipe.id}
-                    recipeId={recipe.id}
-                />
-
-            </div>
-
-        </div>
-
+        </main>
     );
-
 }
 
 export default RecipeDetails;

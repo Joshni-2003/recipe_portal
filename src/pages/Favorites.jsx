@@ -1,55 +1,175 @@
 
 import { Link } from 'react-router-dom';
+import { useMemo } from 'react';
 import { recipes } from '../data/recipes';
 import { useFavorites } from '../context/FavoritesContext';
 import RecipeCard from '../components/RecipeCard';
+import './Favorites.css';
+
+// Load approved user-submitted recipes safely
+function loadApprovedRecipes() {
+    try {
+        const savedRecipes = JSON.parse(
+            localStorage.getItem('moderatorRecipes') || '[]'
+        );
+
+        if (!Array.isArray(savedRecipes)) return [];
+
+        return savedRecipes.filter(
+            (recipe) =>
+                recipe &&
+                (
+                    String(recipe.status || '').toLowerCase() === 'approved' ||
+                    String(recipe.status || '').toLowerCase() === 'published'
+                )
+        );
+    } catch (error) {
+        console.error('Unable to load approved recipes:', error);
+        return [];
+    }
+}
 
 function Favorites() {
-
     const { favorites } = useFavorites();
 
+    // Combine default and approved user-submitted recipes
+    const allRecipes = useMemo(() => {
+        const approvedRecipes = loadApprovedRecipes();
+
+        const combinedRecipes = [
+            ...recipes,
+            ...approvedRecipes
+        ];
+
+        // Avoid duplicate recipes
+        return combinedRecipes.filter(
+            (recipe, index, self) =>
+                recipe &&
+                self.findIndex(
+                    (item) => String(item.id) === String(recipe.id)
+                ) === index
+        );
+    }, []);
+
     // Get recipes saved in favorites
-    const favoriteRecipes = recipes.filter(
-        (recipe) => favorites.includes(recipe.id)
+    const favoriteRecipes = allRecipes.filter(
+        (recipe) =>
+            Array.isArray(favorites) &&
+            favorites.some(
+                (favoriteId) =>
+                    String(favoriteId) === String(recipe.id)
+            )
     );
 
     return (
         <div className="favorites-page">
 
-            <h1>❤️ My Favorite Recipes</h1>
+            <section className="favorites-hero">
+                <div className="favorites-hero-content">
+                    <span className="favorites-eyebrow">
+                        YOUR PERSONAL COLLECTION
+                    </span>
 
-            <p>Your saved favourite dishes are here.</p>
-
-            {favoriteRecipes.length === 0 ? (
-
-                <div className="empty-favorites">
-
-                    <h2>No Favorite Recipes Yet!</h2>
+                    <h1>
+                        Made with love,
+                        <span> saved for later.</span>
+                    </h1>
 
                     <p>
-                        Explore recipes and add your favourite dishes.
+                        All the delicious recipes you love, gathered
+                        together in one place. Your next favourite meal
+                        is just a click away.
                     </p>
 
-                    <Link to="/recipes" className="explore-btn">
-                        Explore Recipes
+                    <div className="favorites-hero-stats">
+                        <div>
+                            <strong>{favoriteRecipes.length}</strong>
+                            <span>Saved Recipes</span>
+                        </div>
+
+                        <div className="favorites-stat-divider"></div>
+
+                        <div>
+                            <strong>♥</strong>
+                            <span>Made with Love</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="favorites-hero-image">
+                    <img
+                        src="https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=1000&q=90"
+                        alt="A delicious collection of food"
+                    />
+                    <div className="favorites-image-note">
+                        <span>♥</span>
+                        Your kitchen favourites
+                    </div>
+                </div>
+            </section>
+
+            <section className="favorites-content">
+
+                <div className="favorites-heading">
+                    <div>
+                        <span className="favorites-section-label">
+                            YOUR COLLECTION
+                        </span>
+                        <h2>My Favorite Recipes</h2>
+                        <p>
+                            The dishes you love, all in one place.
+                        </p>
+                    </div>
+
+                    <Link to="/recipes" className="favorites-browse-btn">
+                        Explore More Recipes
+                        <span>→</span>
                     </Link>
-
                 </div>
 
-            ) : (
+                {favoriteRecipes.length === 0 ? (
 
-                <div className="recipe-grid">
+                    <div className="empty-favorites">
+                        <div className="empty-favorites-icon">♡</div>
 
-                    {favoriteRecipes.map((recipe) => (
-                        <RecipeCard
-                            key={recipe.id}
-                            recipe={recipe}
-                        />
-                    ))}
+                        <span className="favorites-section-label">
+                            YOUR COLLECTION IS WAITING
+                        </span>
 
-                </div>
+                        <h2>No favorites saved yet!</h2>
 
-            )}
+                        <p>
+                            Start exploring delicious recipes and save
+                            the dishes you love. They will appear here.
+                        </p>
+
+                        <Link to="/recipes" className="explore-btn">
+                            Explore Recipes
+                            <span>→</span>
+                        </Link>
+                    </div>
+
+                ) : (
+
+                    <>
+                        <div className="favorites-result-count">
+                            Showing <strong>{favoriteRecipes.length}</strong>
+                            {' '}saved {favoriteRecipes.length === 1 ? 'recipe' : 'recipes'}
+                        </div>
+
+                        <div className="recipe-grid favorites-recipe-grid">
+                            {favoriteRecipes.map((recipe) => (
+                                <RecipeCard
+                                    key={recipe.id}
+                                    recipe={recipe}
+                                />
+                            ))}
+                        </div>
+                    </>
+
+                )}
+
+            </section>
 
         </div>
     );

@@ -1,4 +1,4 @@
-
+import './InstructionEditor.css';
 function InstructionEditor({ instructions, setInstructions }) {
 
     // Edit an existing cooking step

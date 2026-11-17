@@ -1,116 +1,342 @@
 
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { loadNotifications } from '../utils/notificationUtils';
+import './Navbar.css';
 
 function Navbar() {
-
     const { user, logout } = useAuth();
     const navigate = useNavigate();
 
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [menuOpen, setMenuOpen] = useState(false);
+
+    // UPDATE NOTIFICATION COUNT
+    useEffect(() => {
+        function updateUnreadCount() {
+            const email = user?.email?.trim().toLowerCase();
+
+            if (!email) {
+                setUnreadCount(0);
+                return;
+            }
+
+            const notifications = loadNotifications();
+
+            const unread = notifications.filter(
+                (notification) =>
+                    notification.recipientEmail?.toLowerCase() === email &&
+                    !notification.isRead
+            ).length;
+
+            setUnreadCount(unread);
+        }
+
+        updateUnreadCount();
+
+        window.addEventListener(
+            'notifications-updated',
+            updateUnreadCount
+        );
+
+        window.addEventListener('storage', updateUnreadCount);
+
+        return () => {
+            window.removeEventListener(
+                'notifications-updated',
+                updateUnreadCount
+            );
+
+            window.removeEventListener(
+                'storage',
+                updateUnreadCount
+            );
+        };
+    }, [user?.email]);
+
+    // LOGOUT
     function handleLogout() {
+        setMenuOpen(false);
         logout();
         alert('You have logged out successfully!');
         navigate('/');
     }
 
+    // NAVIGATION LINK STYLE
+    const navClass = ({ isActive }) =>
+        `premium-nav-link ${isActive ? 'active' : ''}`;
+
+    function closeMenu() {
+        setMenuOpen(false);
+    }
+
     return (
-        <nav className="navbar">
+        <header className="premium-navbar">
+            <div className="premium-navbar-inner">
 
-            {/* Logo */}
-            <Link to="/" className="logo">
-                🍲 Recipe Portal
-            </Link>
-
-            {/* Navigation Links */}
-            <div className="nav-links">
-
-                <Link to="/">Home</Link>
-                <Link to="/recipes">Explore Recipes</Link>
-
-                {/* Guest Links */}
-                {!user && (
-                    <>
-                        <Link to="/login">Login</Link>
-                        <Link to="/register">Register</Link>
-                        <Link to="/demo-login">Demo Login</Link>
-                    </>
-                )}
-
-                {/* User Links */}
-                {user?.role === 'user' && (
-                    <>
-                        <Link to="/dashboard">User Dashboard</Link>
-                        <Link to="/profile">My Profile</Link>
-                        <Link to="/my-recipes">My Recipes</Link>
-                        <Link to="/my-drafts">My Drafts</Link>
-                        <Link to="/my-reviews">My Reviews</Link>
-                        <Link to="/favorites">Favorites</Link>
-                        <Link to="/create-recipe">Create Recipe</Link>
-                    </>
-                )}
-
-                {/* Moderator Links */}
-                {user?.role === 'moderator' && (
-                    <>
-                        <Link to="/moderator-dashboard">
-                            Moderator Dashboard
-                        </Link>
-                        <Link to="/moderator/review-reports">
-                            Review Reports
-                        </Link>
-                    </>
-                )}
-
-                {/* Admin Links */}
-                {user?.role === 'admin' && (
-                    <>
-                        <Link to="/admin-dashboard">
-                            Admin Dashboard
-                        </Link>
-
-                        <Link to="/category-management">
-                            Manage Categories
-                        </Link>
-
-                        <Link to="/featured-recipes">
-                            Featured Recipes
-                        </Link>
-
-                        <Link to="/reports">Reports</Link>
-
-                        <Link to="/moderator/review-reports">
-                            Review Reports
-                        </Link>
-
-                        <Link to="/admin-settings">
-                            Admin Settings
-                        </Link>
-                    </>
-                )}
-
-                {/* Logged-in User Details and Logout */}
-                {user && (
-                    <div className="nav-user">
-
-                        <span>{user.email}</span>
-
-                        <span className="user-role">
-                            {user.role.toUpperCase()}
-                        </span>
-
-                        <button
-                            type="button"
-                            className="logout-btn"
-                            onClick={handleLogout}
+                {/* RECIPE PORTAL BRAND LOGO */}
+                <Link
+                    to="/"
+                    className="premium-brand"
+                    onClick={closeMenu}
+                >
+                    <span className="premium-brand-icon">
+                        <svg
+                            viewBox="0 0 48 48"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                            aria-hidden="true"
                         >
-                            Logout
-                        </button>
+                            <path
+                                d="M17 17C13 13 19 11 17 7"
+                                stroke="currentColor"
+                                strokeWidth="2.8"
+                                strokeLinecap="round"
+                            />
 
-                    </div>
-                )}
+                            <path
+                                d="M25 16C21 12 27 10 25 6"
+                                stroke="currentColor"
+                                strokeWidth="2.8"
+                                strokeLinecap="round"
+                            />
 
+                            <path
+                                d="M10 23H38L35 36H13L10 23Z"
+                                fill="currentColor"
+                                fillOpacity="0.16"
+                                stroke="currentColor"
+                                strokeWidth="2.8"
+                                strokeLinejoin="round"
+                            />
+
+                            <path
+                                d="M10 26H6V32H12"
+                                stroke="currentColor"
+                                strokeWidth="2.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+
+                            <path
+                                d="M38 26H42V32H36"
+                                stroke="currentColor"
+                                strokeWidth="2.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+
+                            <path
+                                d="M9 22H39"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                            />
+
+                            <path
+                                d="M21 19H27"
+                                stroke="currentColor"
+                                strokeWidth="2.8"
+                                strokeLinecap="round"
+                            />
+
+                            <path
+                                d="M14 40H34"
+                                stroke="currentColor"
+                                strokeWidth="2.8"
+                                strokeLinecap="round"
+                            />
+                        </svg>
+                    </span>
+
+                    <span className="premium-brand-text">
+                        <strong>Recipe</strong>
+                        <span>PORTAL</span>
+                    </span>
+                </Link>
+
+                {/* MOBILE MENU */}
+                <button
+                    type="button"
+                    className="premium-menu-toggle"
+                    onClick={() => setMenuOpen(!menuOpen)}
+                    aria-label="Toggle navigation menu"
+                    aria-expanded={menuOpen}
+                >
+                    {menuOpen ? '✕' : '☰'}
+                </button>
+
+                {/* NAVIGATION */}
+                <div
+                    className={`premium-navigation ${
+                        menuOpen ? 'menu-open' : ''
+                    }`}
+                >
+                    <nav className="premium-nav-links">
+
+                        <NavLink
+                            to="/"
+                            end
+                            className={navClass}
+                            onClick={closeMenu}
+                        >
+                            Home
+                        </NavLink>
+
+                        <NavLink
+                            to="/recipes"
+                            className={navClass}
+                            onClick={closeMenu}
+                        >
+                            Explore Recipes
+                        </NavLink>
+
+                        {/* GUEST LINKS */}
+                        {!user && (
+                            <>
+                                <NavLink
+                                    to="/login"
+                                    className={navClass}
+                                    onClick={closeMenu}
+                                >
+                                    Login
+                                </NavLink>
+
+                                <NavLink
+                                    to="/register"
+                                    className={navClass}
+                                    onClick={closeMenu}
+                                >
+                                    Register
+                                </NavLink>
+                            </>
+                        )}
+
+                        {/* USER LINKS */}
+                        {user?.role === 'user' && (
+                            <>
+                                <NavLink to="/dashboard" className={navClass} onClick={closeMenu}>
+                                    Dashboard
+                                </NavLink>
+
+                                <NavLink to="/profile" className={navClass} onClick={closeMenu}>
+                                    My Profile
+                                </NavLink>
+
+                                <NavLink to="/my-recipes" className={navClass} onClick={closeMenu}>
+                                    My Recipes
+                                </NavLink>
+
+                                <NavLink to="/my-drafts" className={navClass} onClick={closeMenu}>
+                                    My Drafts
+                                </NavLink>
+
+                                <NavLink to="/my-reviews" className={navClass} onClick={closeMenu}>
+                                    My Reviews
+                                </NavLink>
+
+                                <NavLink to="/favorites" className={navClass} onClick={closeMenu}>
+                                    Favorites
+                                </NavLink>
+
+                                <NavLink to="/create-recipe" className={navClass} onClick={closeMenu}>
+                                    Create Recipe
+                                </NavLink>
+                            </>
+                        )}
+
+                        {/* MODERATOR LINKS */}
+                        {user?.role === 'moderator' && (
+                            <>
+                                <NavLink to="/moderator-dashboard" className={navClass} onClick={closeMenu}>
+                                    Dashboard
+                                </NavLink>
+
+                                <NavLink to="/moderator/review-reports" className={navClass} onClick={closeMenu}>
+                                    Review Reports
+                                </NavLink>
+                            </>
+                        )}
+
+                        {/* ADMIN LINKS */}
+                        {user?.role === 'admin' && (
+                            <>
+                                <NavLink to="/admin-dashboard" className={navClass} onClick={closeMenu}>
+                                    Dashboard
+                                </NavLink>
+
+                                <NavLink to="/category-management" className={navClass} onClick={closeMenu}>
+                                    Categories
+                                </NavLink>
+
+                                <NavLink to="/featured-recipes" className={navClass} onClick={closeMenu}>
+                                    Featured
+                                </NavLink>
+
+                                <NavLink to="/reports" className={navClass} onClick={closeMenu}>
+                                    Reports
+                                </NavLink>
+
+                                <NavLink to="/moderator/review-reports" className={navClass} onClick={closeMenu}>
+                                    Review Reports
+                                </NavLink>
+
+                                <NavLink to="/admin-settings" className={navClass} onClick={closeMenu}>
+                                    Settings
+                                </NavLink>
+                            </>
+                        )}
+
+                        {/* NOTIFICATIONS */}
+                        {user && (
+                            <NavLink
+                                to="/notifications"
+                                className={`${navClass({
+                                    isActive: false
+                                })} premium-notification-link`}
+                                onClick={closeMenu}
+                            >
+                                <span>🔔</span>
+                                Notifications
+
+                                {unreadCount > 0 && (
+                                    <span className="premium-notification-badge">
+                                        {unreadCount > 99 ? '99+' : unreadCount}
+                                    </span>
+                                )}
+                            </NavLink>
+                        )}
+
+                    </nav>
+
+                    {/* USER DETAILS */}
+                    {user && (
+                        <div className="premium-user-area">
+
+                            <div className="premium-user-avatar">
+                                {user.email?.charAt(0).toUpperCase() || 'U'}
+                            </div>
+
+                            <div className="premium-user-info">
+                                <strong>{user.email}</strong>
+                                <span>{user.role}</span>
+                            </div>
+
+                            <button
+                                type="button"
+                                className="premium-logout-btn"
+                                onClick={handleLogout}
+                            >
+                                Logout <span>↗</span>
+                            </button>
+
+                        </div>
+                    )}
+
+                </div>
             </div>
-        </nav>
+        </header>
     );
 }
 

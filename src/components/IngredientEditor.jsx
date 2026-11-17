@@ -1,4 +1,4 @@
-
+import './IngredientEditor.css';
 function IngredientEditor({ ingredients, setIngredients }) {
 
     // Update an ingredient

@@ -1,16 +1,20 @@
 
+import './Reports.css';
 import { useState } from 'react';
 
 function Reports() {
 
     const [reportData] = useState({
         totalUsers: 25,
+        activeUsers: 20,
+        inactiveUsers: 5,
         totalRecipes: 18,
         totalReviews: 32,
         averageRating: 4.3,
         approved: 10,
         pending: 5,
-        rejected: 3
+        rejected: 3,
+        featuredRecipes: 4
     });
 
     const [categoryData] = useState([
@@ -25,170 +29,413 @@ function Reports() {
         {
             id: 1,
             activity: 'New recipe submitted',
+            recipe: 'Vegetable Biryani',
             user: 'Rahul',
-            date: 'November 11, 2026'
+            date: '2026-11-11',
+            status: 'Pending'
         },
         {
             id: 2,
             activity: 'Recipe approved',
+            recipe: 'Chocolate Cake',
             user: 'Priya',
-            date: 'November 10, 2026'
+            date: '2026-11-10',
+            status: 'Approved'
         },
         {
             id: 3,
             activity: 'New review added',
+            recipe: 'Masala Dosa',
             user: 'Arun',
-            date: 'November 10, 2026'
+            date: '2026-11-10',
+            status: 'Completed'
         },
         {
             id: 4,
             activity: 'Recipe rejected',
+            recipe: 'Fruit Salad',
             user: 'Sneha',
-            date: 'November 9, 2026'
+            date: '2026-11-09',
+            status: 'Rejected'
         }
     ]);
+
+    const [dateFilter, setDateFilter] = useState('all');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     const totalStatuses =
         reportData.approved +
         reportData.pending +
         reportData.rejected;
 
-    // Calculate percentage for each recipe status
-    function calculatePercentage(count) {
-        if (totalStatuses === 0) {
-            return 0;
+    const userCountValid =
+        reportData.activeUsers + reportData.inactiveUsers ===
+        reportData.totalUsers;
+
+    function calculatePercentage(count, total) {
+        if (total === 0) return 0;
+        return Math.round((count / total) * 100);
+    }
+
+    const filteredActivities = activities.filter((item) => {
+
+        const activityDate = item.date;
+
+        if (dateFilter === 'all') {
+            return true;
         }
 
-        return Math.round((count / totalStatuses) * 100);
+        if (dateFilter === 'custom') {
+
+            if (!startDate && !endDate) return true;
+
+            if (startDate && activityDate < startDate) {
+                return false;
+            }
+
+            if (endDate && activityDate > endDate) {
+                return false;
+            }
+
+            return true;
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const days = Number(dateFilter);
+        const start = new Date(today);
+
+        start.setDate(today.getDate() - (days - 1));
+
+        const startDateString = [
+            start.getFullYear(),
+            String(start.getMonth() + 1).padStart(2, '0'),
+            String(start.getDate()).padStart(2, '0')
+        ].join('-');
+
+        const todayString = [
+            today.getFullYear(),
+            String(today.getMonth() + 1).padStart(2, '0'),
+            String(today.getDate()).padStart(2, '0')
+        ].join('-');
+
+        return activityDate >= startDateString &&
+            activityDate <= todayString;
+    });
+
+    function formatDate(date) {
+        return new Date(date + 'T00:00:00').toLocaleDateString(
+            'en-IN',
+            {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+            }
+        );
     }
+
+    const summaryCards = [
+        {
+            title: 'Total Users',
+            value: reportData.totalUsers,
+            subtitle: 'Registered users',
+            type: 'users'
+        },
+        {
+            title: 'Active Users',
+            value: reportData.activeUsers,
+            subtitle: 'Currently active',
+            type: 'active'
+        },
+        {
+            title: 'Inactive Users',
+            value: reportData.inactiveUsers,
+            subtitle: 'Inactive accounts',
+            type: 'inactive'
+        },
+        {
+            title: 'Total Recipes',
+            value: reportData.totalRecipes,
+            subtitle: 'Recipes submitted',
+            type: 'recipes'
+        },
+        {
+            title: 'Total Reviews',
+            value: reportData.totalReviews,
+            subtitle: 'Community reviews',
+            type: 'reviews'
+        },
+        {
+            title: 'Average Rating',
+            value: `${reportData.averageRating}/5`,
+            subtitle: 'Overall recipe rating',
+            type: 'rating'
+        },
+        {
+            title: 'Featured Recipes',
+            value: reportData.featuredRecipes,
+            subtitle: 'Highlighted recipes',
+            type: 'featured'
+        }
+    ];
 
     return (
         <div className="reports-page">
 
-            <div className="reports-header">
-                <h1>Reports and Analytics 📊</h1>
-                <p>Monitor users, recipes, reviews and portal activity.</p>
+            {/* Hero Banner */}
+
+            <section className="reports-hero">
+
+                <div className="reports-hero-content">
+
+                    <span className="reports-hero-label">
+                        ADMIN ANALYTICS
+                    </span>
+
+                    <h1>
+                        Reports & Analytics
+                    </h1>
+
+                    <p>
+                        Track performance, monitor portal activity
+                        and understand your recipe community.
+                    </p>
+
+                    <div className="reports-hero-line"></div>
+
+                </div>
+
+                <div className="reports-hero-image"></div>
+
+            </section>
+
+            {/* Page Introduction */}
+
+            <div className="reports-section-heading">
+                <div>
+                    <span className="reports-eyebrow">
+                        OVERVIEW
+                    </span>
+
+                    <h2>Portal Performance</h2>
+
+                    <p>
+                        A complete overview of your platform statistics.
+                    </p>
+                </div>
             </div>
+
+            {!userCountValid && (
+                <p className="admin-empty">
+                    User statistics do not match the total user count.
+                </p>
+            )}
 
             {/* Summary Cards */}
-            <div className="report-summary">
 
-                <div className="report-card">
-                    <h3>Total Users</h3>
-                    <h2>{reportData.totalUsers}</h2>
-                </div>
+            <section className="report-summary">
 
-                <div className="report-card">
-                    <h3>Total Recipes</h3>
-                    <h2>{reportData.totalRecipes}</h2>
-                </div>
+                {summaryCards.map((card, index) => (
 
-                <div className="report-card">
-                    <h3>Total Reviews</h3>
-                    <h2>{reportData.totalReviews}</h2>
-                </div>
+                    <div
+                        className={`report-card report-card-${card.type}`}
+                        key={card.type}
+                    >
 
-                <div className="report-card">
-                    <h3>Average Rating</h3>
-                    <h2>⭐ {reportData.averageRating}/5</h2>
-                </div>
+                        <div className="report-card-top">
 
-            </div>
+                            <span className="report-card-number">
+                                {String(index + 1).padStart(2, '0')}
+                            </span>
 
-            {/* Recipe Status Report */}
+                            <span className="report-card-dot"></span>
+
+                        </div>
+
+                        <div className="report-card-content">
+
+                            <h3>{card.title}</h3>
+
+                            <h2>{card.value}</h2>
+
+                            <p>{card.subtitle}</p>
+
+                        </div>
+
+                        <div className="report-card-bottom"></div>
+
+                    </div>
+
+                ))}
+
+            </section>
+
+            {/* Moderation Statistics */}
+
             <section className="report-section">
 
-                <h2>Recipe Moderation Statistics</h2>
+                <div className="report-section-heading">
+
+                    <div>
+                        <span className="reports-eyebrow">
+                            RECIPE MANAGEMENT
+                        </span>
+
+                        <h2>Recipe Moderation Statistics</h2>
+
+                        <p>
+                            Track the approval status of submitted recipes.
+                        </p>
+                    </div>
+
+                    <div className="report-total-badge">
+                        <strong>{totalStatuses}</strong>
+                        <span>Total Submissions</span>
+                    </div>
+
+                </div>
 
                 <div className="status-report">
 
-                    <div className="status-report-item">
-                        <div className="status-report-heading">
-                            <span>Approved Recipes</span>
-                            <strong>{reportData.approved}</strong>
+                    {[
+                        {
+                            title: 'Approved Recipes',
+                            count: reportData.approved,
+                            className: 'approved-fill',
+                            percentage: calculatePercentage(
+                                reportData.approved,
+                                totalStatuses
+                            )
+                        },
+                        {
+                            title: 'Pending Recipes',
+                            count: reportData.pending,
+                            className: 'pending-fill',
+                            percentage: calculatePercentage(
+                                reportData.pending,
+                                totalStatuses
+                            )
+                        },
+                        {
+                            title: 'Rejected Recipes',
+                            count: reportData.rejected,
+                            className: 'rejected-fill',
+                            percentage: calculatePercentage(
+                                reportData.rejected,
+                                totalStatuses
+                            )
+                        }
+                    ].map((item) => (
+
+                        <div
+                            className="status-report-item"
+                            key={item.title}
+                        >
+
+                            <div className="status-report-heading">
+
+                                <div>
+                                    <span>{item.title}</span>
+                                    <strong>{item.count}</strong>
+                                </div>
+
+                                <span className="status-percentage">
+                                    {item.percentage}%
+                                </span>
+
+                            </div>
+
+                            <div className="report-progress">
+
+                                <div
+                                    className={`report-progress-fill ${item.className}`}
+                                    style={{
+                                        width: `${item.percentage}%`
+                                    }}
+                                />
+
+                            </div>
+
                         </div>
 
-                        <div className="report-progress">
-                            <div
-                                className="report-progress-fill approved-fill"
-                                style={{
-                                    width: `${calculatePercentage(reportData.approved)}%`
-                                }}
-                            />
-                        </div>
-
-                        <small>
-                            {calculatePercentage(reportData.approved)}%
-                        </small>
-                    </div>
-
-                    <div className="status-report-item">
-                        <div className="status-report-heading">
-                            <span>Pending Recipes</span>
-                            <strong>{reportData.pending}</strong>
-                        </div>
-
-                        <div className="report-progress">
-                            <div
-                                className="report-progress-fill pending-fill"
-                                style={{
-                                    width: `${calculatePercentage(reportData.pending)}%`
-                                }}
-                            />
-                        </div>
-
-                        <small>
-                            {calculatePercentage(reportData.pending)}%
-                        </small>
-                    </div>
-
-                    <div className="status-report-item">
-                        <div className="status-report-heading">
-                            <span>Rejected Recipes</span>
-                            <strong>{reportData.rejected}</strong>
-                        </div>
-
-                        <div className="report-progress">
-                            <div
-                                className="report-progress-fill rejected-fill"
-                                style={{
-                                    width: `${calculatePercentage(reportData.rejected)}%`
-                                }}
-                            />
-                        </div>
-
-                        <small>
-                            {calculatePercentage(reportData.rejected)}%
-                        </small>
-                    </div>
+                    ))}
 
                 </div>
 
             </section>
 
-            {/* Category Report */}
+            {/* Category Statistics */}
+
             <section className="report-section">
 
-                <h2>Recipes by Category</h2>
+                <div className="report-section-heading">
+
+                    <div>
+                        <span className="reports-eyebrow">
+                            CONTENT DISTRIBUTION
+                        </span>
+
+                        <h2>Recipes by Category</h2>
+
+                        <p>
+                            Explore how recipes are distributed across categories.
+                        </p>
+                    </div>
+
+                    <div className="report-total-badge">
+                        <strong>{reportData.totalRecipes}</strong>
+                        <span>Total Recipes</span>
+                    </div>
+
+                </div>
 
                 <div className="category-report">
 
-                    {categoryData.map((category) => (
+                    {categoryData.map((category, index) => (
 
-                        <div className="category-report-item" key={category.name}>
+                        <div
+                            className="category-report-item"
+                            key={category.name}
+                        >
 
                             <div className="category-report-heading">
-                                <span>{category.name}</span>
-                                <strong>{category.count} Recipes</strong>
+
+                                <div className="category-name-group">
+
+                                    <span className="category-index">
+                                        {String(index + 1).padStart(2, '0')}
+                                    </span>
+
+                                    <span>{category.name}</span>
+
+                                </div>
+
+                                <strong>
+                                    {category.count} Recipes
+                                    <span>
+                                        ({calculatePercentage(
+                                            category.count,
+                                            reportData.totalRecipes
+                                        )}%)
+                                    </span>
+                                </strong>
+
                             </div>
 
                             <div className="report-progress">
+
                                 <div
                                     className="report-progress-fill category-fill"
                                     style={{
-                                        width: `${(category.count / reportData.totalRecipes) * 100}%`
+                                        width: `${calculatePercentage(
+                                            category.count,
+                                            reportData.totalRecipes
+                                        )}%`
                                     }}
                                 />
+
                             </div>
 
                         </div>
@@ -200,9 +447,67 @@ function Reports() {
             </section>
 
             {/* Recent Activity */}
-            <section className="report-section">
 
-                <h2>Recent Portal Activity</h2>
+            <section className="report-section activity-section">
+
+                <div className="report-section-heading activity-header">
+
+                    <div>
+                        <span className="reports-eyebrow">
+                            LATEST UPDATES
+                        </span>
+
+                        <h2>Recent Portal Activity</h2>
+
+                        <p>
+                            Monitor the latest actions across your portal.
+                        </p>
+                    </div>
+
+                    <select
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value)}
+                    >
+                        <option value="all">All Time</option>
+                        <option value="7">Last 7 Days</option>
+                        <option value="30">Last 30 Days</option>
+                        <option value="90">Last 3 Months</option>
+                        <option value="custom">Custom Date Range</option>
+                    </select>
+
+                </div>
+
+                {dateFilter === 'custom' && (
+
+                    <div className="custom-date-filter">
+
+                        <label>
+                            Start Date
+
+                            <input
+                                type="date"
+                                value={startDate}
+                                max={endDate || undefined}
+                                onChange={(e) => setStartDate(e.target.value)}
+                            />
+
+                        </label>
+
+                        <label>
+                            End Date
+
+                            <input
+                                type="date"
+                                value={endDate}
+                                min={startDate || undefined}
+                                onChange={(e) => setEndDate(e.target.value)}
+                            />
+
+                        </label>
+
+                    </div>
+
+                )}
 
                 <div className="activity-table-wrapper">
 
@@ -211,19 +516,37 @@ function Reports() {
                         <thead>
                             <tr>
                                 <th>Activity</th>
+                                <th>Recipe</th>
                                 <th>User</th>
                                 <th>Date</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
 
                         <tbody>
 
-                            {activities.map((item) => (
+                            {filteredActivities.map((item) => (
 
                                 <tr key={item.id}>
-                                    <td>{item.activity}</td>
+
+                                    <td className="activity-name">
+                                        {item.activity}
+                                    </td>
+
+                                    <td>{item.recipe}</td>
+
                                     <td>{item.user}</td>
-                                    <td>{item.date}</td>
+
+                                    <td>{formatDate(item.date)}</td>
+
+                                    <td>
+                                        <span
+                                            className={`admin-status ${item.status.toLowerCase()}`}
+                                        >
+                                            {item.status}
+                                        </span>
+                                    </td>
+
                                 </tr>
 
                             ))}
@@ -232,6 +555,18 @@ function Reports() {
 
                     </table>
 
+                    {filteredActivities.length === 0 && (
+
+                        <p className="admin-empty">
+                            No activities found for this period.
+                        </p>
+
+                    )}
+
+                </div>
+
+                <div className="activity-footer">
+                    Showing {filteredActivities.length} activities
                 </div>
 
             </section>

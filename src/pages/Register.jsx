@@ -1,10 +1,9 @@
 
+import './Register.css';
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 
 function Register() {
-
-    // Store user's form details
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -12,47 +11,34 @@ function Register() {
         confirmPassword: ''
     });
 
-    // Store validation errors
     const [errors, setErrors] = useState({});
-
-    // Store success message
     const [success, setSuccess] = useState('');
-
-    // Show or hide passwords
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-
-    // Loading state
     const [isLoading, setIsLoading] = useState(false);
 
-    // Handle input changes
     function handleChange(e) {
-
         const { name, value } = e.target;
 
-        setFormData({
-            ...formData,
+        setFormData(prev => ({
+            ...prev,
             [name]: value
-        });
+        }));
 
-        // Clear only the current field error
-        setErrors({
-            ...errors,
+        setErrors(prev => ({
+            ...prev,
             [name]: ''
-        });
+        }));
 
         setSuccess('');
     }
 
-    // Validate registration form
     function validateForm() {
-
         const newErrors = {};
-
         const name = formData.name.trim();
         const email = formData.email.trim();
 
-        // Name validation
+        // Full name validation
         if (!name) {
             newErrors.name = 'Full name is required';
         } else if (name.length < 2) {
@@ -64,9 +50,7 @@ function Register() {
         // Email validation
         if (!email) {
             newErrors.email = 'Email is required';
-        } else if (
-            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-        ) {
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
             newErrors.email = 'Enter a valid email address';
         }
 
@@ -80,43 +64,35 @@ function Register() {
         // Confirm password validation
         if (!formData.confirmPassword) {
             newErrors.confirmPassword = 'Please confirm your password';
-        } else if (
-            formData.password !== formData.confirmPassword
-        ) {
+        } else if (formData.password !== formData.confirmPassword) {
             newErrors.confirmPassword = 'Passwords do not match';
         }
 
         return newErrors;
     }
 
-    // Handle form submission
     function handleSubmit(e) {
-
         e.preventDefault();
 
         const newErrors = validateForm();
-
         setErrors(newErrors);
         setSuccess('');
 
-        // Stop if validation fails
         if (Object.keys(newErrors).length > 0) {
             return;
         }
 
-        // Frontend demo only
-        // Backend registration API will be connected later
         setIsLoading(true);
 
+        // Demo validation only.
+        // Connect your Flask registration API here later.
         setTimeout(() => {
-
             setIsLoading(false);
 
             setSuccess(
-                'Registration form validation successful! Backend API is not connected yet.'
+                'Registration validation successful! Backend API is not connected yet.'
             );
 
-            // Clear form after successful validation
             setFormData({
                 name: '',
                 email: '',
@@ -124,165 +100,335 @@ function Register() {
                 confirmPassword: ''
             });
 
+            setShowPassword(false);
+            setShowConfirmPassword(false);
         }, 500);
     }
 
     return (
-
         <div className="register-page">
 
-            <div className="register-card">
+            <div className="register-decoration decoration-one"></div>
+            <div className="register-decoration decoration-two"></div>
 
-                <h2>Create Your Account</h2>
+            <div className="register-container">
 
-                <p>Join our Cooking Recipe Portal</p>
+                {/* LEFT HERO SECTION */}
+                <section className="register-left">
 
-                <form onSubmit={handleSubmit} noValidate>
+                    <Link to="/" className="register-brand">
+                        <span className="register-brand-icon">♨</span>
 
-                    {/* Full Name */}
-                    <label htmlFor="register-name">
-                        Full Name
-                    </label>
-
-                    <input
-                        id="register-name"
-                        type="text"
-                        name="name"
-                        placeholder="Enter your full name"
-                        value={formData.name}
-                        onChange={handleChange}
-                        autoComplete="name"
-                        aria-invalid={Boolean(errors.name)}
-                    />
-
-                    {errors.name && (
-                        <span className="error" role="alert">
-                            {errors.name}
+                        <span className="register-brand-name">
+                            Cooking
+                            <strong>Recipe Portal</strong>
                         </span>
-                    )}
+                    </Link>
 
-                    {/* Email */}
-                    <label htmlFor="register-email">
-                        Email Address
-                    </label>
+                    <div className="register-left-content">
 
-                    <input
-                        id="register-email"
-                        type="email"
-                        name="email"
-                        placeholder="Enter your email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        autoComplete="email"
-                        aria-invalid={Boolean(errors.email)}
-                    />
-
-                    {errors.email && (
-                        <span className="error" role="alert">
-                            {errors.email}
+                        <span className="register-eyebrow">
+                            WELCOME TO OUR FOOD COMMUNITY
                         </span>
-                    )}
 
-                    {/* Password */}
-                    <label htmlFor="register-password">
-                        Password
-                    </label>
+                        <h1>
+                            Create Memories,
+                            <span>Share Flavours!</span>
+                        </h1>
 
-                    <input
-                        id="register-password"
-                        type={showPassword ? 'text' : 'password'}
-                        name="password"
-                        placeholder="Create a password"
-                        value={formData.password}
-                        onChange={handleChange}
-                        autoComplete="new-password"
-                        aria-invalid={Boolean(errors.password)}
-                    />
-
-                    {errors.password && (
-                        <span className="error" role="alert">
-                            {errors.password}
-                        </span>
-                    )}
-
-                    <div className="show-password">
-
-                        <input
-                            id="show-register-password"
-                            type="checkbox"
-                            checked={showPassword}
-                            onChange={(e) =>
-                                setShowPassword(e.target.checked)
-                            }
-                        />
-
-                        <label htmlFor="show-register-password">
-                            Show Password
-                        </label>
-
-                    </div>
-
-                    {/* Confirm Password */}
-                    <label htmlFor="confirm-password">
-                        Confirm Password
-                    </label>
-
-                    <input
-                        id="confirm-password"
-                        type={showConfirmPassword ? 'text' : 'password'}
-                        name="confirmPassword"
-                        placeholder="Confirm your password"
-                        value={formData.confirmPassword}
-                        onChange={handleChange}
-                        autoComplete="new-password"
-                        aria-invalid={Boolean(errors.confirmPassword)}
-                    />
-
-                    {errors.confirmPassword && (
-                        <span className="error" role="alert">
-                            {errors.confirmPassword}
-                        </span>
-                    )}
-
-                    <div className="show-password">
-
-                        <input
-                            id="show-confirm-password"
-                            type="checkbox"
-                            checked={showConfirmPassword}
-                            onChange={(e) =>
-                                setShowConfirmPassword(e.target.checked)
-                            }
-                        />
-
-                        <label htmlFor="show-confirm-password">
-                            Show Confirm Password
-                        </label>
-
-                    </div>
-
-                    {/* Register Button */}
-                    <button
-                        type="submit"
-                        className="register-btn"
-                        disabled={isLoading}
-                    >
-                        {isLoading ? 'Please wait...' : 'Register'}
-                    </button>
-
-                    {/* Success Message */}
-                    {success && (
-                        <p className="success" role="status">
-                            {success}
+                        <p className="register-description">
+                            Join our food-loving community and discover
+                            delicious recipes, share your cooking skills
+                            and inspire people around the world.
                         </p>
-                    )}
 
-                </form>
+                        {/* FEATURES */}
+                        <div className="register-features">
 
-                <p className="register-link">
-                    Already have an account?
-                    <Link to="/login"> Login here</Link>
-                </p>
+                            <div className="register-feature">
+                                <div className="register-feature-icon">♨</div>
+                                <span>
+                                    Explore<br />Recipes
+                                </span>
+                            </div>
+
+                            <div className="register-feature">
+                                <div className="register-feature-icon">♡</div>
+                                <span>
+                                    Save Your<br />Favorites
+                                </span>
+                            </div>
+
+                            <div className="register-feature">
+                                <div className="register-feature-icon">♣</div>
+                                <span>
+                                    Join Our<br />Community
+                                </span>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    {/* FOOD IMAGE */}
+                    <div className="register-food-image">
+
+                        <img
+                            src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=1200&auto=format&fit=crop&q=85"
+                            alt="Fresh and colorful healthy food"
+                            className="register-food-photo"
+                        />
+
+                        <div className="register-image-caption">
+                            <span>Made with love ❤️</span>
+                            <h3>Cook it. Share it. Inspire someone.</h3>
+                        </div>
+
+                    </div>
+
+                    <p className="register-left-footer">
+                        Every recipe tells a beautiful story.
+                    </p>
+
+                </section>
+
+                {/* RIGHT REGISTRATION SECTION */}
+                <section className="register-right">
+
+                    <div className="register-top-text">
+                        Cook <span>•</span> Share <span>•</span> Inspire
+                    </div>
+
+                    <div className="register-card">
+
+                        <div className="register-card-logo">
+                            ♨
+                        </div>
+
+                        <div className="register-heading">
+                            <h2>Create Account!</h2>
+                            <p>
+                                Join our community and start your
+                                culinary journey.
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleSubmit} noValidate>
+
+                            {/* FULL NAME */}
+                            <div className="register-field">
+
+                                <label htmlFor="register-name">
+                                    Full Name
+                                </label>
+
+                                <div className={`register-input-wrapper ${errors.name ? 'input-error' : ''}`}>
+
+                                    <span className="register-input-icon">♟</span>
+
+                                    <input
+                                        id="register-name"
+                                        type="text"
+                                        name="name"
+                                        placeholder="Enter your full name"
+                                        value={formData.name}
+                                        onChange={handleChange}
+                                        autoComplete="name"
+                                        aria-invalid={Boolean(errors.name)}
+                                    />
+
+                                </div>
+
+                                {errors.name && (
+                                    <span className="register-error" role="alert">
+                                        {errors.name}
+                                    </span>
+                                )}
+
+                            </div>
+
+                            {/* EMAIL */}
+                            <div className="register-field">
+
+                                <label htmlFor="register-email">
+                                    Email Address
+                                </label>
+
+                                <div className={`register-input-wrapper ${errors.email ? 'input-error' : ''}`}>
+
+                                    <span className="register-input-icon">✉</span>
+
+                                    <input
+                                        id="register-email"
+                                        type="email"
+                                        name="email"
+                                        placeholder="Enter your email"
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        autoComplete="email"
+                                        aria-invalid={Boolean(errors.email)}
+                                    />
+
+                                </div>
+
+                                {errors.email && (
+                                    <span className="register-error" role="alert">
+                                        {errors.email}
+                                    </span>
+                                )}
+
+                            </div>
+
+                            {/* PASSWORD */}
+                            <div className="register-field">
+
+                                <label htmlFor="register-password">
+                                    Password
+                                </label>
+
+                                <div className={`register-input-wrapper ${errors.password ? 'input-error' : ''}`}>
+
+                                    <span className="register-input-icon">🔒</span>
+
+                                    <input
+                                        id="register-password"
+                                        type={showPassword ? 'text' : 'password'}
+                                        name="password"
+                                        placeholder="Create a password"
+                                        value={formData.password}
+                                        onChange={handleChange}
+                                        autoComplete="new-password"
+                                        aria-invalid={Boolean(errors.password)}
+                                    />
+
+                                    <button
+                                        type="button"
+                                        className="register-password-toggle"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                    >
+                                        {showPassword ? 'Hide' : 'Show'}
+                                    </button>
+
+                                </div>
+
+                                {errors.password && (
+                                    <span className="register-error" role="alert">
+                                        {errors.password}
+                                    </span>
+                                )}
+
+                            </div>
+
+                            {/* CONFIRM PASSWORD */}
+                            <div className="register-field">
+
+                                <label htmlFor="confirm-password">
+                                    Confirm Password
+                                </label>
+
+                                <div className={`register-input-wrapper ${errors.confirmPassword ? 'input-error' : ''}`}>
+
+                                    <span className="register-input-icon">🔒</span>
+
+                                    <input
+                                        id="confirm-password"
+                                        type={showConfirmPassword ? 'text' : 'password'}
+                                        name="confirmPassword"
+                                        placeholder="Confirm your password"
+                                        value={formData.confirmPassword}
+                                        onChange={handleChange}
+                                        autoComplete="new-password"
+                                        aria-invalid={Boolean(errors.confirmPassword)}
+                                    />
+
+                                    <button
+                                        type="button"
+                                        className="register-password-toggle"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                    >
+                                        {showConfirmPassword ? 'Hide' : 'Show'}
+                                    </button>
+
+                                </div>
+
+                                {errors.confirmPassword && (
+                                    <span className="register-error" role="alert">
+                                        {errors.confirmPassword}
+                                    </span>
+                                )}
+
+                            </div>
+
+                            {/* PASSWORD VISIBILITY CHECKBOXES */}
+                            <div className="register-password-options">
+
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={showPassword}
+                                        onChange={(e) =>
+                                            setShowPassword(e.target.checked)
+                                        }
+                                    />
+                                    Show Password
+                                </label>
+
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        checked={showConfirmPassword}
+                                        onChange={(e) =>
+                                            setShowConfirmPassword(e.target.checked)
+                                        }
+                                    />
+                                    Show Confirm Password
+                                </label>
+
+                            </div>
+
+                            {/* REGISTER BUTTON */}
+                            <button
+                                type="submit"
+                                className="register-submit-btn"
+                                disabled={isLoading}
+                            >
+                                {isLoading
+                                    ? 'Creating Account...'
+                                    : 'Create Account →'}
+                            </button>
+
+                            {/* SUCCESS MESSAGE */}
+                            {success && (
+                                <p className="register-success" role="status">
+                                    {success}
+                                </p>
+                            )}
+
+                        </form>
+
+                        {/* DIVIDER */}
+                        <div className="register-divider">
+                            <span></span>
+                            <p>Welcome to our kitchen</p>
+                            <span></span>
+                        </div>
+
+                        {/* LOGIN LINK */}
+                        <div className="register-login-link">
+                            <p>Already have an account?</p>
+
+                            <Link to="/login">
+                                Login Now →
+                            </Link>
+                        </div>
+
+                        {/* FOOTER */}
+                        <p className="register-bottom-text">
+                            © 2026 Cooking Recipe Portal. Made with love ❤️
+                        </p>
+
+                    </div>
+
+                </section>
 
             </div>
 

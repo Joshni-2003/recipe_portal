@@ -1,258 +1,539 @@
+import './Profile.css';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { recipes } from '../data/recipes';
+
+const STORAGE_KEY = 'user-profile';
+
+const defaultProfile = {
+    name: 'Joshni',
+    email: 'joshni@gmail.com',
+    bio: 'I love cooking and trying new recipes. Food is my passion!',
+    location: 'Hyderabad',
+    image: ''
+};
+
+// Food images used in the profile gallery
+const favoriteRecipes = [
+    {
+        id: 1,
+        name: 'Vegetable Biryani',
+        rating: '4.8',
+        image: 'https://images.unsplash.com/photo-1563379091339-03246963d96a?w=600&auto=format&fit=crop&q=85'
+    },
+    {
+        id: 2,
+        name: 'Chocolate Cake',
+        rating: '4.9',
+        image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=85'
+    },
+    {
+        id: 3,
+        name: 'Paneer Butter Masala',
+        rating: '4.8',
+        image: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?w=600&auto=format&fit=crop&q=85'
+    },
+    {
+        id: 4,
+        name: 'Masala Dosa',
+        rating: '4.7',
+        image: 'https://images.unsplash.com/photo-1630383249896-424e482df921?w=600&auto=format&fit=crop&q=85'
+    }
+];
+
+const heroImage =
+    'https://images.unsplash.com/photo-1473093295043-cdd812d0e601?w=1800&auto=format&fit=crop&q=90';
+
+// Load profile from localStorage
+function loadProfile() {
+    try {
+        const savedProfile = JSON.parse(
+            localStorage.getItem(STORAGE_KEY) || 'null'
+        );
+
+        if (savedProfile && typeof savedProfile === 'object') {
+            return {
+                ...defaultProfile,
+                ...savedProfile
+            };
+        }
+
+        return { ...defaultProfile };
+    } catch (error) {
+        console.error('Unable to load profile:', error);
+        return { ...defaultProfile };
+    }
+}
+
+// Load favorite count
+function loadFavoriteCount() {
+    try {
+        const savedFavorites = JSON.parse(
+            localStorage.getItem('favorites') || '[]'
+        );
+
+        return Array.isArray(savedFavorites)
+            ? savedFavorites.length
+            : 0;
+    } catch (error) {
+        console.error('Unable to load favorites:', error);
+        return 0;
+    }
+}
 
 function Profile() {
-
-    // Sample user profile
-    const [profile, setProfile] = useState({
-        name: 'Joshni',
-        email: 'joshni@gmail.com',
-        bio: 'I love cooking and trying new recipes.',
-        location: 'India',
-        image: ''
-    });
-
-    const [formData, setFormData] = useState(profile);
+    const [profile, setProfile] = useState(loadProfile);
+    const [formData, setFormData] = useState(loadProfile);
     const [isEditing, setIsEditing] = useState(false);
     const [message, setMessage] = useState('');
     const [errors, setErrors] = useState({});
+    const [imageError, setImageError] = useState(false);
+    const [favoriteCount, setFavoriteCount] = useState(loadFavoriteCount);
 
-    // Handle input changes
+    // Refresh favorite count when favorites change
+    useEffect(() => {
+        const updateFavorites = () => {
+            setFavoriteCount(loadFavoriteCount());
+        };
+
+        window.addEventListener('storage', updateFavorites);
+        window.addEventListener('favorites-updated', updateFavorites);
+
+        return () => {
+            window.removeEventListener('storage', updateFavorites);
+            window.removeEventListener('favorites-updated', updateFavorites);
+        };
+    }, []);
+
+    // Handle form changes
     function handleChange(e) {
-
         const { name, value } = e.target;
 
-        setFormData({
-            ...formData,
+        setFormData(prev => ({
+            ...prev,
             [name]: value
-        });
+        }));
 
-        setErrors({});
+        setErrors(prev => ({
+            ...prev,
+            [name]: ''
+        }));
+
         setMessage('');
+
+        if (name === 'image') {
+            setImageError(false);
+        }
     }
 
-    // Save profile changes
+    // Save profile
     function handleSubmit(e) {
-
         e.preventDefault();
+
+        const updatedProfile = {
+            name: formData.name.trim(),
+            email: formData.email.trim(),
+            location: formData.location.trim(),
+            bio: formData.bio.trim(),
+            image: formData.image.trim()
+        };
 
         const newErrors = {};
 
-        if (!formData.name.trim()) {
-            newErrors.name = 'Name is required.';
+        if (!updatedProfile.name) {
+            newErrors.name = 'Please enter your name.';
         }
 
-        if (!formData.email.trim()) {
-            newErrors.email = 'Email is required.';
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-            newErrors.email = 'Enter a valid email address.';
-        }
-
-        if (
-            formData.image.trim() &&
-            !/^https?:\/\/\S+$/i.test(formData.image)
+        if (!updatedProfile.email) {
+            newErrors.email = 'Please enter your email.';
+        } else if (
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updatedProfile.email)
         ) {
-            newErrors.image = 'Enter a valid image URL.';
+            newErrors.email = 'Please enter a valid email address.';
+        }
+
+        if (updatedProfile.image) {
+            try {
+                const imageUrl = new URL(updatedProfile.image);
+
+                if (
+                    imageUrl.protocol !== 'http:' &&
+                    imageUrl.protocol !== 'https:'
+                ) {
+                    newErrors.image = 'Please enter a valid image URL.';
+                }
+            } catch {
+                newErrors.image = 'Please enter a valid image URL.';
+            }
         }
 
         setErrors(newErrors);
 
-        if (Object.keys(newErrors).length === 0) {
+        if (Object.keys(newErrors).length > 0) {
+            return;
+        }
 
-            setProfile(formData);
+        try {
+            localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify(updatedProfile)
+            );
+
+            setProfile(updatedProfile);
+            setFormData(updatedProfile);
             setIsEditing(false);
-            setMessage('Profile updated successfully!');
-
+            setImageError(false);
+            setMessage('Your profile has been updated successfully!');
+        } catch (error) {
+            console.error('Unable to save profile:', error);
+            setMessage('Unable to save your profile. Please try again.');
         }
     }
 
     // Cancel editing
     function handleCancel() {
-
         setFormData(profile);
         setIsEditing(false);
         setErrors({});
         setMessage('');
+        setImageError(false);
     }
 
-    return (
+    const availableRecipeCount = Array.isArray(recipes)
+        ? recipes.length
+        : 0;
 
+    const profileInitial = profile.name?.charAt(0).toUpperCase() || 'U';
+
+    const showProfileImage = profile.image && !imageError;
+
+    return (
         <div className="profile-page">
 
-            <div className="profile-card">
+            {/* Food Hero Banner */}
+            <section className="profile-hero">
 
-                <h1>My Profile 👤</h1>
+                <img
+                    src={heroImage}
+                    alt="Delicious pasta on a dining table"
+                    className="profile-hero-image"
+                />
 
-                <p className="profile-subtitle">
-                    View and manage your personal information.
-                </p>
+                <div className="profile-hero-overlay"></div>
 
-                {/* Profile Image */}
-                <div className="profile-image-section">
+                <div className="profile-hero-content">
+                    <span>Good Food</span>
+                    <span>Good Mood ♡</span>
+                    <div className="hero-underline"></div>
+                </div>
 
-                    {profile.image ? (
+            </section>
 
+            {/* Profile Information Card */}
+            <section className="profile-main-card">
+
+                <div className="profile-avatar-wrapper">
+
+                    {showProfileImage ? (
                         <img
                             src={profile.image}
-                            alt="User profile"
-                            className="profile-image"
+                            alt="Profile"
+                            className="profile-avatar"
+                            onError={() => setImageError(true)}
                         />
-
                     ) : (
-
-                        <div className="profile-placeholder">
-                            {profile.name.charAt(0).toUpperCase() || 'U'}
+                        <div className="profile-avatar profile-avatar-placeholder">
+                            {profileInitial}
                         </div>
-
                     )}
-
-                    <h2>{profile.name}</h2>
-
-                    <p>{profile.email}</p>
 
                 </div>
 
-                {message && (
-                    <p className="profile-success">{message}</p>
-                )}
+                <div className="profile-main-info">
+                    <h1>{profile.name || 'User'}</h1>
 
-                {!isEditing ? (
+                    <div className="profile-contact-info">
+                        <span>✉ {profile.email}</span>
+                        <span>📍 {profile.location || 'Location not added'}</span>
+                    </div>
 
-                    /* View Profile */
-                    <div className="profile-details">
+                    <p>{profile.bio || 'Welcome to my cooking profile!'}</p>
+                </div>
 
-                        <div className="profile-detail-item">
-                            <strong>Full Name:</strong>
-                            <span>{profile.name}</span>
+                <button
+                    className="profile-edit-button"
+                    onClick={() => {
+                        setFormData(profile);
+                        setIsEditing(true);
+                        setMessage('');
+                    }}
+                >
+                    ✏ Edit Profile
+                </button>
+
+            </section>
+
+            {/* Success / Error Message */}
+            {message && (
+                <div
+                    className={
+                        message.includes('successfully')
+                            ? 'profile-message profile-success'
+                            : 'profile-message profile-error'
+                    }
+                >
+                    {message}
+                </div>
+            )}
+
+            {/* Statistics */}
+            <section className="profile-stats">
+
+                <div className="profile-stat-card">
+                    <div className="profile-stat-icon">🍲</div>
+                    <h2>{availableRecipeCount}</h2>
+                    <p>Available Recipes</p>
+                </div>
+
+                <div className="profile-stat-card">
+                    <div className="profile-stat-icon">❤️</div>
+                    <h2>{favoriteCount}</h2>
+                    <p>My Favorites</p>
+                </div>
+
+                <div className="profile-stat-card">
+                    <div className="profile-stat-icon">📍</div>
+                    <h2 className="profile-stat-location">
+                        {profile.location || 'Add Location'}
+                    </h2>
+                    <p>My Location</p>
+                </div>
+
+                <div className="profile-stat-card">
+                    <div className="profile-stat-icon">👩‍🍳</div>
+                    <h2>Food Lover</h2>
+                    <p>My Cooking Journey</p>
+                </div>
+
+            </section>
+
+            {/* Main Content */}
+            <section className="profile-content-grid">
+
+                {/* About Me */}
+                <div className="profile-about-card">
+
+                    <div className="profile-section-heading">
+                        <span>👤</span>
+                        <h2>About Me</h2>
+                    </div>
+
+                    <p className="profile-about-bio">
+                        {profile.bio || 'Tell the community something about yourself.'}
+                    </p>
+
+                    <div className="profile-about-divider"></div>
+
+                    <div className="profile-about-detail">
+                        <span className="about-detail-icon">📍</span>
+                        <div>
+                            <strong>Location</strong>
+                            <p>{profile.location || 'Not provided'}</p>
+                        </div>
+                    </div>
+
+                    <div className="profile-about-detail">
+                        <span className="about-detail-icon">✉️</span>
+                        <div>
+                            <strong>Email</strong>
+                            <p>{profile.email || 'Not provided'}</p>
+                        </div>
+                    </div>
+
+                    <div className="profile-about-divider"></div>
+
+                    <div className="profile-interests">
+                        <h3>👩‍🍳 Cooking Interests</h3>
+
+                        <div className="interest-tags">
+                            <span>Indian Cuisine</span>
+                            <span>Healthy Food</span>
+                            <span>Desserts</span>
+                            <span>Quick Meals</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                {/* Favorite Recipe Gallery */}
+                <div className="profile-favorites-card">
+
+                    <div className="profile-favorites-heading">
+                        <div className="profile-section-heading">
+                            <span>⭐</span>
+                            <h2>My Favorite Recipes</h2>
                         </div>
 
-                        <div className="profile-detail-item">
-                            <strong>Email:</strong>
-                            <span>{profile.email}</span>
-                        </div>
+                        <Link to="/favorites" className="profile-view-all">
+                            View All →
+                        </Link>
+                    </div>
 
-                        <div className="profile-detail-item">
-                            <strong>Location:</strong>
-                            <span>{profile.location || 'Not provided'}</span>
-                        </div>
+                    <div className="profile-recipe-gallery">
 
-                        <div className="profile-detail-item">
-                            <strong>About Me:</strong>
-                            <span>{profile.bio || 'No bio added yet.'}</span>
-                        </div>
+                        {favoriteRecipes.map(recipe => (
+                            <Link
+                                to="/recipes"
+                                className="profile-recipe-card"
+                                key={recipe.id}
+                            >
+                                <img
+                                    src={recipe.image}
+                                    alt={recipe.name}
+                                    loading="lazy"
+                                />
 
-                        <button
-                            className="edit-profile-btn"
-                            onClick={() => {
-                                setFormData(profile);
-                                setIsEditing(true);
-                                setMessage('');
-                            }}
-                        >
-                            ✏️ Edit Profile
-                        </button>
+                                <div className="profile-recipe-info">
+                                    <h3>{recipe.name}</h3>
+                                    <div className="profile-recipe-rating">
+                                        <span>⭐</span>
+                                        {recipe.rating}
+                                        <span className="recipe-heart">♡</span>
+                                    </div>
+                                </div>
+                            </Link>
+                        ))}
 
                     </div>
 
-                ) : (
+                </div>
 
-                    /* Edit Profile Form */
-                    <form
-                        className="profile-form"
-                        onSubmit={handleSubmit}
-                    >
+            </section>
 
-                        <label htmlFor="name">Full Name</label>
+            {/* Footer Quote */}
+            <div className="profile-quote">
+                <span>♨</span>
+                <p>“Cooking is love made visible.”</p>
+                <span>♡</span>
+            </div>
 
-                        <input
-                            type="text"
-                            id="name"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleChange}
-                            placeholder="Enter your name"
-                        />
+            {/* Edit Profile Modal */}
+            {isEditing && (
+                <div className="profile-modal-overlay">
 
-                        {errors.name && (
-                            <span className="error">{errors.name}</span>
-                        )}
+                    <div className="profile-edit-modal">
 
-                        <label htmlFor="email">Email Address</label>
-
-                        <input
-                            type="email"
-                            id="email"
-                            name="email"
-                            value={formData.email}
-                            onChange={handleChange}
-                            placeholder="Enter your email"
-                        />
-
-                        {errors.email && (
-                            <span className="error">{errors.email}</span>
-                        )}
-
-                        <label htmlFor="location">Location</label>
-
-                        <input
-                            type="text"
-                            id="location"
-                            name="location"
-                            value={formData.location}
-                            onChange={handleChange}
-                            placeholder="Enter your location"
-                        />
-
-                        <label htmlFor="bio">About Me</label>
-
-                        <textarea
-                            id="bio"
-                            name="bio"
-                            value={formData.bio}
-                            onChange={handleChange}
-                            placeholder="Tell us about yourself"
-                            rows="4"
-                        />
-
-                        <label htmlFor="image">Profile Image URL</label>
-
-                        <input
-                            type="text"
-                            id="image"
-                            name="image"
-                            value={formData.image}
-                            onChange={handleChange}
-                            placeholder="Paste an image URL"
-                        />
-
-                        {errors.image && (
-                            <span className="error">{errors.image}</span>
-                        )}
-
-                        <div className="profile-form-actions">
-
-                            <button
-                                type="submit"
-                                className="save-profile-btn"
-                            >
-                                Save Changes
-                            </button>
+                        <div className="profile-modal-heading">
+                            <div>
+                                <span>✏️</span>
+                                <h2>Edit Your Profile</h2>
+                                <p>Update your personal information</p>
+                            </div>
 
                             <button
                                 type="button"
-                                className="cancel-profile-btn"
+                                className="profile-modal-close"
                                 onClick={handleCancel}
+                                aria-label="Close edit form"
                             >
-                                Cancel
+                                ×
                             </button>
-
                         </div>
 
-                    </form>
+                        <form
+                            className="profile-form"
+                            onSubmit={handleSubmit}
+                        >
 
-                )}
+                            <label htmlFor="name">Full Name</label>
+                            <input
+                                type="text"
+                                id="name"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                placeholder="Enter your name"
+                            />
+                            {errors.name && (
+                                <span className="profile-field-error">
+                                    {errors.name}
+                                </span>
+                            )}
 
-            </div>
+                            <label htmlFor="email">Email Address</label>
+                            <input
+                                type="email"
+                                id="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={handleChange}
+                                placeholder="Enter your email"
+                            />
+                            {errors.email && (
+                                <span className="profile-field-error">
+                                    {errors.email}
+                                </span>
+                            )}
+
+                            <label htmlFor="location">Location</label>
+                            <input
+                                type="text"
+                                id="location"
+                                name="location"
+                                value={formData.location}
+                                onChange={handleChange}
+                                placeholder="Enter your location"
+                            />
+
+                            <label htmlFor="bio">About Me</label>
+                            <textarea
+                                id="bio"
+                                name="bio"
+                                value={formData.bio}
+                                onChange={handleChange}
+                                placeholder="Tell us about yourself"
+                                rows="3"
+                            />
+
+                            <label htmlFor="image">Profile Image URL</label>
+                            <input
+                                type="url"
+                                id="image"
+                                name="image"
+                                value={formData.image}
+                                onChange={handleChange}
+                                placeholder="Paste your image URL"
+                            />
+                            {errors.image && (
+                                <span className="profile-field-error">
+                                    {errors.image}
+                                </span>
+                            )}
+
+                            <div className="profile-form-actions">
+                                <button
+                                    type="submit"
+                                    className="profile-save-button"
+                                >
+                                    Save Changes
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="profile-cancel-button"
+                                    onClick={handleCancel}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+
+                        </form>
+
+                    </div>
+
+                </div>
+            )}
 
         </div>
     );

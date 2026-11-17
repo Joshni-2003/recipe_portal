@@ -14,6 +14,7 @@ import ExploreRecipes from './pages/ExploreRecipes';
 import RecipeDetails from './pages/RecipeDetails';
 import CreateRecipe from './pages/CreateRecipe';
 import Favorites from './pages/Favorites';
+import Notifications from './pages/Notifications';
 
 import UserDashboard from './pages/UserDashboard';
 import ModeratorDashboard from './pages/ModeratorDashboard';
@@ -30,7 +31,6 @@ import Reports from './pages/Reports';
 import ReviewReports from './pages/ReviewReports';
 import AdminSettings from './pages/AdminSettings';
 
-import DemoLogin from './pages/DemoLogin';
 import Unauthorized from './pages/Unauthorized';
 
 // Context
@@ -38,7 +38,6 @@ import { FavoritesProvider } from './context/FavoritesContext';
 import { AuthProvider } from './context/AuthContext';
 
 function App() {
-
     return (
         <AuthProvider>
             <FavoritesProvider>
@@ -48,23 +47,17 @@ function App() {
 
                     <Routes>
 
-                        {/* Public Routes */}
+                        {/* PUBLIC ROUTES */}
                         <Route path="/" element={<Home />} />
-
                         <Route path="/login" element={<Login />} />
-
                         <Route path="/register" element={<Register />} />
-
-                        <Route path="/demo-login" element={<DemoLogin />} />
-
                         <Route path="/unauthorized" element={<Unauthorized />} />
 
-                        {/* Public Recipe Routes */}
+                        {/* PUBLIC RECIPE ROUTES */}
                         <Route path="/recipes" element={<ExploreRecipes />} />
-
                         <Route path="/recipes/:id" element={<RecipeDetails />} />
 
-                        {/* User Routes */}
+                        {/* USER ROUTES */}
                         <Route
                             path="/dashboard"
                             element={
@@ -128,7 +121,17 @@ function App() {
                             }
                         />
 
-                        {/* Moderator Routes */}
+                        {/* NOTIFICATIONS */}
+                        <Route
+                            path="/notifications"
+                            element={
+                                <ProtectedRoute allowedRoles={['user', 'moderator', 'admin']}>
+                                    <Notifications />
+                                </ProtectedRoute>
+                            }
+                        />
+
+                        {/* MODERATOR ROUTES */}
                         <Route
                             path="/moderator-dashboard"
                             element={
@@ -147,7 +150,7 @@ function App() {
                             }
                         />
 
-                        {/* Admin Routes */}
+                        {/* ADMIN ROUTES */}
                         <Route
                             path="/admin-dashboard"
                             element={

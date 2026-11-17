@@ -1,19 +1,20 @@
+import './ReviewSection.css';
 
 import { useState, useEffect, useRef } from 'react';
+import {
+    addNotification,
+    getRecipeOwnerEmail
+} from '../utils/notificationUtils';
 
 // Load saved reviews from localStorage
 function loadSavedReviews(storageKey) {
     try {
         const savedReviews = localStorage.getItem(storageKey);
 
-        if (!savedReviews) {
-            return [];
-        }
+        if (!savedReviews) return [];
 
         const parsedReviews = JSON.parse(savedReviews);
-
         return Array.isArray(parsedReviews) ? parsedReviews : [];
-
     } catch (error) {
         console.error('Unable to load reviews:', error);
         return [];
@@ -23,27 +24,62 @@ function loadSavedReviews(storageKey) {
 // Load saved reports from localStorage
 function loadSavedReports() {
     try {
-        const savedReports = localStorage.getItem(
-            'recipe-review-reports'
-        );
+        const savedReports = localStorage.getItem('recipe-review-reports');
 
-        if (!savedReports) {
-            return [];
-        }
+        if (!savedReports) return [];
 
         const parsedReports = JSON.parse(savedReports);
-
         return Array.isArray(parsedReports) ? parsedReports : [];
-
     } catch (error) {
         console.error('Unable to load reports:', error);
         return [];
     }
 }
 
-function ReviewSection({ recipeId }) {
+// Synchronize current user's reviews with My Reviews page
+function syncMyReviews(recipeId, recipeName, reviews, loggedInEmail, name) {
+    try {
+        const saved = JSON.parse(
+            localStorage.getItem('my-reviews-data') || '[]'
+        );
 
-    // Reference to the review form
+        const existingReviews = Array.isArray(saved) ? saved : [];
+
+        // Keep reviews belonging to other recipes
+        const otherReviews = existingReviews.filter(
+            (review) => String(review.recipeId) !== String(recipeId)
+        );
+
+        // Get only the current user's reviews for this recipe
+        const userReviews = reviews
+            .filter((review) => {
+                if (loggedInEmail && review.reviewerId) {
+                    return review.reviewerId === `email:${loggedInEmail}`;
+                }
+
+                return (
+                    String(review.name || '').trim().toLowerCase() ===
+                    String(name || '').trim().toLowerCase()
+                );
+            })
+            .map((review) => ({
+                ...review,
+                recipeId,
+                recipeName
+            }));
+
+        localStorage.setItem(
+            'my-reviews-data',
+            JSON.stringify([...otherReviews, ...userReviews])
+        );
+
+        window.dispatchEvent(new Event('my-reviews-updated'));
+    } catch (error) {
+        console.error('Unable to sync My Reviews:', error);
+    }
+}
+
+function ReviewSection({ recipeId, recipeName }) {
     const reviewFormRef = useRef(null);
 
     // Get logged-in user information
@@ -54,7 +90,6 @@ function ReviewSection({ recipeId }) {
                 localStorage.getItem('user');
 
             return savedUser ? JSON.parse(savedUser) : null;
-
         } catch (error) {
             console.error('Unable to load user:', error);
             return null;
@@ -67,7 +102,6 @@ function ReviewSection({ recipeId }) {
         loggedInUser?.email || ''
     ).trim().toLowerCase();
 
-    // Get current user's role
     const currentRole = String(
         loggedInUser?.role || ''
     ).toLowerCase();
@@ -78,13 +112,38 @@ function ReviewSection({ recipeId }) {
 
     // Storage keys
     const storageKey = `recipe-reviews-${recipeId}`;
-
     const reportsStorageKey = 'recipe-review-reports';
 
     // Review states
     const [reviews, setReviews] = useState(
         () => loadSavedReviews(storageKey)
     );
+
+    // Admin review setting
+    const [reviewsEnabled, setReviewsEnabled] = useState(() => {
+        try {
+            const savedSettings = JSON.parse(
+                localStorage.getItem('recipe-admin-settings')
+            );
+
+            return savedSettings?.reviewsEnabled ?? true;
+        } catch {
+            return true;
+        }
+    });
+
+    // Admin review reporting setting
+    const [reviewReportsEnabled, setReviewReportsEnabled] = useState(() => {
+        try {
+            const savedSettings = JSON.parse(
+                localStorage.getItem('recipe-admin-settings')
+            );
+
+            return savedSettings?.reviewReports ?? true;
+        } catch {
+            return true;
+        }
+    });
 
     const [name, setName] = useState(() => (
         loggedInUser?.name ||
@@ -93,7 +152,6 @@ function ReviewSection({ recipeId }) {
     ));
 
     const [rating, setRating] = useState(0);
-
     const [comment, setComment] = useState('');
 
     // Edit review state
@@ -101,27 +159,86 @@ function ReviewSection({ recipeId }) {
 
     // Sorting and filtering
     const [sortOption, setSortOption] = useState('latest');
-
     const [filterRating, setFilterRating] = useState('all');
 
     // Reporting states
     const [reportingReviewId, setReportingReviewId] = useState(null);
-
     const [reportReason, setReportReason] = useState('Spam');
-
     const [reportDetails, setReportDetails] = useState('');
-
     const [reports, setReports] = useState(loadSavedReports);
 
-    // Save reviews automatically
+    // Listen for Admin Settings changes
+    useEffect(() => {
+        function checkReviewSetting() {
+            try {
+                const savedSettings = JSON.parse(
+                    localStorage.getItem('recipe-admin-settings')
+                );
+
+                const enabled = savedSettings?.reviewsEnabled ?? true;
+                const reportsEnabled = savedSettings?.reviewReports ?? true;
+
+                setReviewsEnabled(enabled);
+                setReviewReportsEnabled(reportsEnabled);
+
+                if (!enabled) {
+                    setEditingReviewId(null);
+                    setRating(0);
+                    setComment('');
+                }
+
+                if (!reportsEnabled) {
+                    setReportingReviewId(null);
+                    setReportReason('Spam');
+                    setReportDetails('');
+                }
+            } catch {
+                setReviewsEnabled(true);
+                setReviewReportsEnabled(true);
+            }
+        }
+
+        window.addEventListener(
+            'admin-settings-updated',
+            checkReviewSetting
+        );
+
+        window.addEventListener('storage', checkReviewSetting);
+
+        return () => {
+            window.removeEventListener(
+                'admin-settings-updated',
+                checkReviewSetting
+            );
+
+            window.removeEventListener('storage', checkReviewSetting);
+        };
+    }, []);
+
+    // Save reviews and synchronize My Reviews
     useEffect(() => {
         localStorage.setItem(
             storageKey,
             JSON.stringify(reviews)
         );
-    }, [reviews, storageKey]);
 
-    // Save reports automatically
+        syncMyReviews(
+            recipeId,
+            recipeName,
+            reviews,
+            loggedInEmail,
+            name
+        );
+    }, [
+        reviews,
+        storageKey,
+        recipeId,
+        recipeName,
+        loggedInEmail,
+        name
+    ]);
+
+    // Save reports
     useEffect(() => {
         localStorage.setItem(
             reportsStorageKey,
@@ -131,30 +248,27 @@ function ReviewSection({ recipeId }) {
 
     // Create reviewer identity
     function getReviewerId(reviewerName) {
-
         if (loggedInEmail) {
             return `email:${loggedInEmail}`;
         }
 
-        return `name:${reviewerName.trim().toLowerCase()}`;
+        return `name:${String(reviewerName || '').trim().toLowerCase()}`;
     }
 
     // Find current user's existing review
     const existingReview = reviews.find((review) => {
-
         if (loggedInEmail && review.reviewerId) {
             return review.reviewerId === `email:${loggedInEmail}`;
         }
 
         return (
-            review.name?.trim().toLowerCase() ===
-            name.trim().toLowerCase()
+            String(review.name || '').trim().toLowerCase() ===
+            String(name || '').trim().toLowerCase()
         );
     });
 
     // Filter reviews
     const filteredReviews = reviews.filter((review) => {
-
         if (review.isHidden && !canViewHiddenReviews) {
             return false;
         }
@@ -168,7 +282,6 @@ function ReviewSection({ recipeId }) {
 
     // Sort reviews
     const visibleReviews = [...filteredReviews].sort((a, b) => {
-
         if (sortOption === 'latest') {
             return b.id - a.id;
         }
@@ -188,10 +301,9 @@ function ReviewSection({ recipeId }) {
         return 0;
     });
 
-    // Calculate average rating safely
+    // Calculate average rating
     const totalRating = visibleReviews.reduce(
         (total, review) => {
-
             const safeRating = Math.min(
                 5,
                 Math.max(0, Number(review.rating) || 0)
@@ -208,8 +320,12 @@ function ReviewSection({ recipeId }) {
 
     // Submit or update review
     function handleSubmitReview(event) {
-
         event.preventDefault();
+
+        if (!reviewsEnabled) {
+            alert('Reviews are currently disabled by the administrator.');
+            return;
+        }
 
         if (!name.trim()) {
             alert('Please enter your name.');
@@ -228,12 +344,10 @@ function ReviewSection({ recipeId }) {
 
         const reviewerId = getReviewerId(name);
 
+        // Update existing review
         if (editingReviewId !== null) {
-
             const updatedReviews = reviews.map((review) => {
-
                 if (review.id === editingReviewId) {
-
                     return {
                         ...review,
                         name: name.trim(),
@@ -248,32 +362,25 @@ function ReviewSection({ recipeId }) {
             });
 
             setReviews(updatedReviews);
-
             setEditingReviewId(null);
-
             alert('Review updated successfully!');
-
         } else {
-
             // Prevent duplicate reviews
             const alreadyReviewed = reviews.some((review) => {
-
                 if (loggedInEmail && review.reviewerId) {
                     return review.reviewerId === reviewerId;
                 }
 
                 return (
-                    review.name?.trim().toLowerCase() ===
+                    String(review.name || '').trim().toLowerCase() ===
                     name.trim().toLowerCase()
                 );
             });
 
             if (alreadyReviewed) {
-
                 alert(
                     'You have already reviewed this recipe. Please edit your existing review.'
                 );
-
                 return;
             }
 
@@ -291,19 +398,36 @@ function ReviewSection({ recipeId }) {
                 newReview
             ]);
 
+            // Notify the recipe owner about the new review
+            const recipeOwnerEmail = getRecipeOwnerEmail(recipeId);
+
+            if (recipeOwnerEmail) {
+                addNotification({
+                    recipientEmail: recipeOwnerEmail,
+                    actorEmail: loggedInEmail,
+                    type: 'new-review',
+                    title: 'New Recipe Review',
+                    message: `${name.trim()} added a new review to your recipe "${recipeName}".`,
+                    recipeId,
+                    recipeName
+                });
+            }
+
             alert('Review submitted successfully!');
         }
 
         setRating(0);
-
         setComment('');
     }
 
     // Edit review
     function handleEditReview(review) {
+        if (!reviewsEnabled) {
+            alert('Reviews are currently disabled.');
+            return;
+        }
 
         setEditingReviewId(review.id);
-
         setName(review.name);
 
         setRating(
@@ -315,20 +439,16 @@ function ReviewSection({ recipeId }) {
 
         setComment(review.comment);
 
-        // Scroll to the review form
         setTimeout(() => {
-
             reviewFormRef.current?.scrollIntoView({
                 behavior: 'smooth',
                 block: 'center'
             });
-
         }, 100);
     }
 
     // Cancel editing
     function cancelEdit() {
-
         setEditingReviewId(null);
 
         setName(
@@ -338,13 +458,11 @@ function ReviewSection({ recipeId }) {
         );
 
         setRating(0);
-
         setComment('');
     }
 
     // Delete review
     function handleDeleteReview(reviewId) {
-
         const confirmDelete = window.confirm(
             'Are you sure you want to delete this review?'
         );
@@ -362,13 +480,17 @@ function ReviewSection({ recipeId }) {
         alert('Review deleted successfully!');
     }
 
-    // Submit a report
+    // Submit report
     function handleReportReview(review) {
+        if (!reviewReportsEnabled) {
+            alert(
+                'Review reporting is currently disabled by the administrator.'
+            );
+            return;
+        }
 
         if (!loggedInEmail && !name.trim()) {
-
             alert('Please enter your name before reporting a review.');
-
             return;
         }
 
@@ -376,50 +498,33 @@ function ReviewSection({ recipeId }) {
             ? `email:${loggedInEmail}`
             : `name:${name.trim().toLowerCase()}`;
 
-        const alreadyReported = reports.some((report) => {
-
-            return (
-                String(report.reviewId) === String(review.id) &&
-                String(report.recipeId) === String(recipeId) &&
-                report.reporterId === reporterId &&
-                report.status === 'Pending'
-            );
-        });
+        const alreadyReported = reports.some((report) => (
+            String(report.reviewId) === String(review.id) &&
+            String(report.recipeId) === String(recipeId) &&
+            report.reporterId === reporterId &&
+            report.status === 'Pending'
+        ));
 
         if (alreadyReported) {
-
             alert('You have already reported this review.');
-
             return;
         }
 
         const newReport = {
-
             id: Date.now(),
-
             reviewId: review.id,
-
             recipeId,
-
             reviewName: review.name,
-
             reviewComment: review.comment,
-
             reviewRating: review.rating,
-
             reporterId,
-
             reportedBy:
                 loggedInUser?.name ||
                 loggedInUser?.username ||
                 name.trim(),
-
             reason: reportReason,
-
             details: reportDetails.trim(),
-
             date: new Date().toLocaleString(),
-
             status: 'Pending'
         };
 
@@ -429,9 +534,7 @@ function ReviewSection({ recipeId }) {
         ]);
 
         setReportingReviewId(null);
-
         setReportReason('Spam');
-
         setReportDetails('');
 
         alert(
@@ -439,156 +542,132 @@ function ReviewSection({ recipeId }) {
         );
     }
 
-    // Cancel reporting
+    // Cancel report
     function cancelReport() {
-
         setReportingReviewId(null);
-
         setReportReason('Spam');
-
         setReportDetails('');
     }
 
     return (
-
         <section className="review-section">
-
             <h2>⭐ Ratings and Reviews</h2>
 
             {/* Rating Summary */}
             <div className="rating-summary">
-
                 <h3>{averageRating} / 5 ⭐</h3>
-
                 <p>
                     Based on {visibleReviews.length} reviews
                 </p>
-
             </div>
 
             {/* Review Form */}
-            <div
-                className="review-form"
-                ref={reviewFormRef}
-            >
+            {reviewsEnabled ? (
+                <div
+                    className="review-form"
+                    ref={reviewFormRef}
+                >
+                    <h3>
+                        {editingReviewId !== null
+                            ? '✏️ Edit Your Review'
+                            : 'Write a Review'}
+                    </h3>
 
-                <h3>
-                    {editingReviewId !== null
-                        ? '✏️ Edit Your Review'
-                        : 'Write a Review'}
-                </h3>
+                    {existingReview && editingReviewId === null && (
+                        <p className="existing-review-message">
+                            You have already reviewed this recipe.
+                            You can edit or delete your existing review below.
+                        </p>
+                    )}
 
-                {existingReview && editingReviewId === null && (
+                    <form onSubmit={handleSubmitReview}>
+                        <label htmlFor="reviewer-name">
+                            Your Name
+                        </label>
 
-                    <p className="existing-review-message">
-                        You have already reviewed this recipe.
-                        You can edit or delete your existing review below.
+                        <input
+                            id="reviewer-name"
+                            type="text"
+                            value={name}
+                            onChange={(event) =>
+                                setName(event.target.value)
+                            }
+                            placeholder="Enter your name"
+                            required
+                        />
+
+                        <label>Your Rating</label>
+
+                        <div className="rating-stars">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                    key={star}
+                                    type="button"
+                                    className={
+                                        star <= rating
+                                            ? 'star active'
+                                            : 'star'
+                                    }
+                                    onClick={() => setRating(star)}
+                                    aria-label={`Rate ${star} out of 5`}
+                                    aria-pressed={star <= rating}
+                                >
+                                    ★
+                                </button>
+                            ))}
+                        </div>
+
+                        <label htmlFor="review-comment">
+                            Your Review
+                        </label>
+
+                        <textarea
+                            id="review-comment"
+                            value={comment}
+                            onChange={(event) =>
+                                setComment(event.target.value)
+                            }
+                            placeholder="Write your experience..."
+                            rows="4"
+                            required
+                        />
+
+                        <div className="review-form-buttons">
+                            <button type="submit">
+                                {editingReviewId !== null
+                                    ? 'Update Review'
+                                    : 'Submit Review'}
+                            </button>
+
+                            {editingReviewId !== null && (
+                                <button
+                                    type="button"
+                                    className="cancel-edit-btn"
+                                    onClick={cancelEdit}
+                                >
+                                    Cancel
+                                </button>
+                            )}
+                        </div>
+                    </form>
+                </div>
+            ) : (
+                <div className="submission-disabled-message">
+                    <h3>Reviews Currently Unavailable</h3>
+                    <p>
+                        The administrator has temporarily disabled
+                        reviews for this recipe. Please try again later.
                     </p>
-
-                )}
-
-                <form onSubmit={handleSubmitReview}>
-
-                    {/* Reviewer Name */}
-                    <label htmlFor="reviewer-name">
-                        Your Name
-                    </label>
-
-                    <input
-                        id="reviewer-name"
-                        type="text"
-                        value={name}
-                        onChange={(event) =>
-                            setName(event.target.value)
-                        }
-                        placeholder="Enter your name"
-                        required
-                        disabled={Boolean(
-                            loggedInEmail &&
-                            (loggedInUser?.name || loggedInUser?.username) &&
-                            editingReviewId === null
-                        )}
-                    />
-
-                    {/* Rating */}
-                    <label>Your Rating</label>
-
-                    <div className="rating-stars">
-
-                        {[1, 2, 3, 4, 5].map((star) => (
-
-                            <button
-                                key={star}
-                                type="button"
-                                className={
-                                    star <= rating
-                                        ? 'star active'
-                                        : 'star'
-                                }
-                                onClick={() => setRating(star)}
-                                aria-label={`Rate ${star} out of 5`}
-                                aria-pressed={star <= rating}
-                            >
-                                ★
-                            </button>
-
-                        ))}
-
-                    </div>
-
-                    {/* Review Comment */}
-                    <label htmlFor="review-comment">
-                        Your Review
-                    </label>
-
-                    <textarea
-                        id="review-comment"
-                        value={comment}
-                        onChange={(event) =>
-                            setComment(event.target.value)
-                        }
-                        placeholder="Write your experience..."
-                        rows="4"
-                        required
-                    />
-
-                    {/* Submit and Cancel */}
-                    <div className="review-form-buttons">
-
-                        <button type="submit">
-                            {editingReviewId !== null
-                                ? 'Update Review'
-                                : 'Submit Review'}
-                        </button>
-
-                        {editingReviewId !== null && (
-
-                            <button
-                                type="button"
-                                className="cancel-edit-btn"
-                                onClick={cancelEdit}
-                            >
-                                Cancel
-                            </button>
-
-                        )}
-
-                    </div>
-
-                </form>
-
-            </div>
+                </div>
+            )}
 
             {/* Customer Reviews */}
             <div className="reviews-list">
-
                 <h3>Customer Reviews</h3>
 
                 {/* Sorting and Filtering */}
                 <div className="review-controls">
-
                     <div>
-
                         <label htmlFor="filter-rating">
                             Filter by Rating:
                         </label>
@@ -607,11 +686,9 @@ function ReviewSection({ recipeId }) {
                             <option value="2">2 Stars</option>
                             <option value="1">1 Star</option>
                         </select>
-
                     </div>
 
                     <div>
-
                         <label htmlFor="sort-reviews">
                             Sort Reviews:
                         </label>
@@ -628,9 +705,7 @@ function ReviewSection({ recipeId }) {
                             <option value="highest">Highest Rating</option>
                             <option value="lowest">Lowest Rating</option>
                         </select>
-
                     </div>
-
                 </div>
 
                 {/* Review Count */}
@@ -644,23 +719,18 @@ function ReviewSection({ recipeId }) {
 
                 {/* Display Reviews */}
                 {visibleReviews.length === 0 ? (
-
                     <p className="no-reviews-message">
                         {reviews.length === 0
                             ? 'No reviews yet. Be the first to review!'
                             : 'No visible reviews found for this rating.'}
                     </p>
-
                 ) : (
-
                     visibleReviews.map((review) => {
-
                         const isMyReview = loggedInEmail
                             ? review.reviewerId === `email:${loggedInEmail}`
-                            : review.name?.trim().toLowerCase() ===
-                              name.trim().toLowerCase();
+                            : String(review.name || '').trim().toLowerCase() ===
+                              String(name || '').trim().toLowerCase();
 
-                        // Validate rating between 0 and 5
                         const safeRating = Math.round(
                             Math.min(
                                 5,
@@ -669,52 +739,43 @@ function ReviewSection({ recipeId }) {
                         );
 
                         return (
-
                             <div
                                 className="review-card"
                                 key={review.id}
                             >
-
                                 <div className="review-card-header">
-
                                     <h4>{review.name}</h4>
-
                                     <span>{review.date}</span>
-
                                 </div>
 
                                 {/* Hidden Review Label */}
                                 {review.isHidden && canViewHiddenReviews && (
-
                                     <p className="hidden-review-label">
                                         🚫 This review is hidden from normal users.
                                     </p>
-
                                 )}
 
                                 {/* Review Stars */}
                                 <div className="review-card-stars">
-
                                     {'★'.repeat(safeRating)}
                                     {'☆'.repeat(5 - safeRating)}
-
                                 </div>
 
                                 <p>{review.comment}</p>
 
-                                {/* Edit and Delete Buttons */}
+                                {/* Edit and Delete */}
                                 {isMyReview && !review.isHidden && (
-
                                     <div className="review-actions">
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                handleEditReview(review)
-                                            }
-                                        >
-                                            ✏️ Edit
-                                        </button>
+                                        {reviewsEnabled && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    handleEditReview(review)
+                                                }
+                                            >
+                                                ✏️ Edit
+                                            </button>
+                                        )}
 
                                         <button
                                             type="button"
@@ -725,117 +786,91 @@ function ReviewSection({ recipeId }) {
                                         >
                                             🗑️ Delete
                                         </button>
-
                                     </div>
-
                                 )}
 
                                 {/* Report Review */}
-                                {!isMyReview && !review.isHidden && (
+                                {reviewReportsEnabled &&
+                                    !isMyReview &&
+                                    !review.isHidden && (
+                                        <div className="report-review-section">
+                                            {reportingReviewId === review.id ? (
+                                                <div className="report-form">
+                                                    <h4>🚩 Report this review</h4>
 
-                                    <div className="report-review-section">
+                                                    <label>
+                                                        Reason for reporting:
+                                                    </label>
 
-                                        {reportingReviewId === review.id ? (
-
-                                            <div className="report-form">
-
-                                                <h4>🚩 Report this review</h4>
-
-                                                <label>
-                                                    Reason for reporting:
-                                                </label>
-
-                                                <select
-                                                    value={reportReason}
-                                                    onChange={(event) =>
-                                                        setReportReason(event.target.value)
-                                                    }
-                                                >
-                                                    <option value="Spam">
-                                                        Spam
-                                                    </option>
-
-                                                    <option value="Offensive Content">
-                                                        Offensive Content
-                                                    </option>
-
-                                                    <option value="Fake Review">
-                                                        Fake Review
-                                                    </option>
-
-                                                    <option value="Inappropriate Language">
-                                                        Inappropriate Language
-                                                    </option>
-
-                                                    <option value="Other">
-                                                        Other
-                                                    </option>
-                                                </select>
-
-                                                <label>
-                                                    Additional details:
-                                                </label>
-
-                                                <textarea
-                                                    value={reportDetails}
-                                                    onChange={(event) =>
-                                                        setReportDetails(event.target.value)
-                                                    }
-                                                    placeholder="Explain why you are reporting this review..."
-                                                    rows="3"
-                                                />
-
-                                                <div className="report-form-buttons">
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleReportReview(review)
+                                                    <select
+                                                        value={reportReason}
+                                                        onChange={(event) =>
+                                                            setReportReason(event.target.value)
                                                         }
                                                     >
-                                                        Submit Report
-                                                    </button>
+                                                        <option value="Spam">Spam</option>
+                                                        <option value="Offensive Content">
+                                                            Offensive Content
+                                                        </option>
+                                                        <option value="Fake Review">
+                                                            Fake Review
+                                                        </option>
+                                                        <option value="Inappropriate Language">
+                                                            Inappropriate Language
+                                                        </option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
 
-                                                    <button
-                                                        type="button"
-                                                        className="cancel-report-btn"
-                                                        onClick={cancelReport}
-                                                    >
-                                                        Cancel
-                                                    </button>
+                                                    <label>
+                                                        Additional details:
+                                                    </label>
 
+                                                    <textarea
+                                                        value={reportDetails}
+                                                        onChange={(event) =>
+                                                            setReportDetails(event.target.value)
+                                                        }
+                                                        placeholder="Explain why you are reporting this review..."
+                                                        rows="3"
+                                                    />
+
+                                                    <div className="report-form-buttons">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleReportReview(review)
+                                                            }
+                                                        >
+                                                            Submit Report
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            className="cancel-report-btn"
+                                                            onClick={cancelReport}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    </div>
                                                 </div>
-
-                                            </div>
-
-                                        ) : (
-
-                                            <button
-                                                type="button"
-                                                className="report-review-btn"
-                                                onClick={() =>
-                                                    setReportingReviewId(review.id)
-                                                }
-                                            >
-                                                🚩 Report Review
-                                            </button>
-
-                                        )}
-
-                                    </div>
-
-                                )}
-
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    className="report-review-btn"
+                                                    onClick={() =>
+                                                        setReportingReviewId(review.id)
+                                                    }
+                                                >
+                                                    🚩 Report Review
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                             </div>
-
                         );
-
                     })
-
                 )}
-
             </div>
-
         </section>
     );
 }

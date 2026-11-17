@@ -1,116 +1,469 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { recipes as exploreRecipes } from '../data/recipes';
+import './MyRecipes.css';
+
+const dietaryOptions = [
+    'Vegetarian',
+    'Vegan',
+    'Gluten-Free',
+    'Dairy-Free',
+    'Non-Vegetarian'
+];
+
+const allergenOptions = [
+    'Milk',
+    'Peanuts',
+    'Tree Nuts',
+    'Soy',
+    'Wheat',
+    'Eggs',
+    'Fish',
+    'Shellfish'
+];
+
+const defaultRecipes = [
+    {
+        id: 1,
+        name: 'Vegetable Biryani',
+        category: 'Indian',
+        status: 'Approved',
+        description: 'A delicious vegetable biryani.',
+        cookingTime: '',
+        image: '',
+        dietaryTags: ['Vegetarian'],
+        allergens: [],
+        ingredients: [
+            { name: 'Rice', quantity: '2', unit: 'cups', preparationNote: '' },
+            { name: 'Carrot', quantity: '1', unit: 'piece', preparationNote: 'Chopped' }
+        ],
+        instructions: [
+            'Wash and soak the rice.',
+            'Cook vegetables with spices.',
+            'Add rice and cook until done.'
+        ]
+    },
+    {
+        id: 2,
+        name: 'Chocolate Cake',
+        category: 'Dessert',
+        status: 'Draft',
+        description: 'A soft and tasty chocolate cake.',
+        cookingTime: '',
+        image: '',
+        dietaryTags: [],
+        allergens: ['Milk', 'Wheat', 'Eggs'],
+        ingredients: [
+            { name: 'Flour', quantity: '2', unit: 'cups', preparationNote: '' },
+            { name: 'Cocoa Powder', quantity: '1', unit: 'cup', preparationNote: '' }
+        ],
+        instructions: [
+            'Mix all dry ingredients.',
+            'Add wet ingredients and mix.',
+            'Bake until fully cooked.'
+        ]
+    },
+    {
+        id: 3,
+        name: 'Paneer Butter Masala',
+        category: 'Indian',
+        status: 'Pending',
+        description: 'Creamy paneer butter masala.',
+        cookingTime: '',
+        image: '',
+        dietaryTags: ['Vegetarian'],
+        allergens: ['Milk'],
+        ingredients: [
+            { name: 'Paneer', quantity: '200', unit: 'grams', preparationNote: 'Cubed' }
+        ],
+        instructions: [
+            'Prepare the tomato gravy.',
+            'Add paneer and cook.'
+        ]
+    },
+    {
+        id: 4,
+        name: 'Mango Ice Cream',
+        category: 'Dessert',
+        status: 'Rejected',
+        description: 'Homemade mango ice cream.',
+        cookingTime: '',
+        image: '',
+        dietaryTags: ['Vegetarian'],
+        allergens: ['Milk'],
+        ingredients: [
+            { name: 'Mango', quantity: '2', unit: 'pieces', preparationNote: 'Peeled' }
+        ],
+        instructions: [
+            'Blend mango into a smooth mixture.',
+            'Freeze until firm.'
+        ]
+    }
+];
+
+// Check whether an image is a valid image URL or uploaded image
+function isValidImage(image) {
+    return (
+        typeof image === 'string' &&
+        (
+            image.startsWith('data:image/') ||
+            image.startsWith('http://') ||
+            image.startsWith('https://')
+        )
+    );
+}
+
+// Get the correct image for each recipe
+function getRecipeImage(recipe) {
+    if (!recipe) return '';
+
+    const recipeName = (recipe.name || '').trim().toLowerCase();
+
+    // First priority: Find the matching recipe in Explore Recipes
+    const exploreRecipe = exploreRecipes.find(
+        (item) =>
+            (item.name || '').trim().toLowerCase() === recipeName
+    );
+
+    // Use the exact image from Explore Recipes
+    if (exploreRecipe && isValidImage(exploreRecipe.image)) {
+        return exploreRecipe.image;
+    }
+
+    // Second priority: Use the uploaded image for custom recipes
+    if (isValidImage(recipe.image)) {
+        return recipe.image;
+    }
+
+    // Third priority: Use a recipe-specific fallback image
+    const imageOptions = [
+        {
+            keywords: ['biryani'],
+            image: 'https://images.unsplash.com/photo-1563379091339-03246963d51a?auto=format&fit=crop&w=700&q=85'
+        },
+        {
+            keywords: ['dosa'],
+            image: 'https://images.unsplash.com/photo-1668236543090-82eba5ee5976?auto=format&fit=crop&w=700&q=85'
+        },
+        {
+            keywords: ['cake', 'brownie'],
+            image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=700&q=85'
+        },
+        {
+            keywords: ['paneer'],
+            image: 'https://images.unsplash.com/photo-1631452180519-c014fe946bc7?auto=format&fit=crop&w=700&q=85'
+        },
+        {
+            keywords: ['mango', 'ice cream'],
+            image: 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?auto=format&fit=crop&w=700&q=85'
+        },
+        {
+            keywords: ['chicken'],
+            image: 'https://images.unsplash.com/photo-1603894584373-5ac82b2ae398?auto=format&fit=crop&w=700&q=85'
+        }
+    ];
+
+    const matchedImage = imageOptions.find((option) =>
+        option.keywords.some((keyword) => recipeName.includes(keyword))
+    );
+
+    return matchedImage?.image || '';
+}
+
+// Load recipes from browser storage
+function loadMyRecipes(userEmail) {
+    let savedRecipes = [];
+    let moderatorRecipes = [];
+
+    try {
+        const saved = JSON.parse(
+            localStorage.getItem('my-recipes') || '[]'
+        );
+
+        if (Array.isArray(saved)) {
+            savedRecipes = saved;
+        }
+    } catch (error) {
+        console.error('Unable to load My Recipes:', error);
+    }
+
+    try {
+        const saved = JSON.parse(
+            localStorage.getItem('moderatorRecipes') || '[]'
+        );
+
+        if (Array.isArray(saved)) {
+            moderatorRecipes = saved;
+        }
+    } catch (error) {
+        console.error('Unable to load moderator recipes:', error);
+    }
+
+    const baseRecipes = savedRecipes.length > 0
+        ? savedRecipes
+        : defaultRecipes;
+
+    const normalizedEmail = userEmail?.trim().toLowerCase();
+
+    // Include this user's submissions and older demo submissions
+    const userSubmissions = moderatorRecipes.filter((recipe) => {
+        if (!recipe) return false;
+
+        const submittedEmail = (
+            recipe.submittedByEmail ||
+            recipe.submittedById ||
+            ''
+        ).trim().toLowerCase();
+
+        return (
+            recipe.submittedBy === 'User' ||
+            (normalizedEmail && submittedEmail === normalizedEmail)
+        );
+    });
+
+    const updatedRecipes = [...baseRecipes];
+
+    userSubmissions.forEach((submittedRecipe) => {
+        const existingIndex = updatedRecipes.findIndex(
+            (recipe) =>
+                String(recipe.id) === String(submittedRecipe.id)
+        );
+
+        const updatedRecipe = {
+            ...submittedRecipe,
+            cookingTime:
+                submittedRecipe.cookingTime ||
+                submittedRecipe.time ||
+                '',
+            ingredients: Array.isArray(submittedRecipe.ingredients)
+                ? submittedRecipe.ingredients
+                : [],
+            instructions: Array.isArray(submittedRecipe.instructions)
+                ? submittedRecipe.instructions
+                : [],
+            dietaryTags: Array.isArray(submittedRecipe.dietaryTags)
+                ? submittedRecipe.dietaryTags
+                : [],
+            allergens: Array.isArray(submittedRecipe.allergens)
+                ? submittedRecipe.allergens
+                : [],
+            status: submittedRecipe.status || 'Pending'
+        };
+
+        if (existingIndex !== -1) {
+            updatedRecipes[existingIndex] = {
+                ...updatedRecipes[existingIndex],
+                ...updatedRecipe
+            };
+        } else {
+            updatedRecipes.push(updatedRecipe);
+        }
+    });
+
+    return updatedRecipes;
+}
 
 function MyRecipes() {
+    const { user } = useAuth();
+    const userEmail = user?.email?.trim().toLowerCase() || '';
 
-    const [myRecipes, setMyRecipes] = useState([
-        {
-            id: 1,
-            name: 'Vegetable Biryani',
-            category: 'Indian',
-            status: 'Approved',
-            description: 'A delicious vegetable biryani.',
-            ingredients: [
-                { name: 'Rice', quantity: '2', unit: 'cups', preparationNote: '' },
-                { name: 'Carrot', quantity: '1', unit: 'piece', preparationNote: 'Chopped' }
-            ],
-            instructions: [
-                'Wash and soak the rice.',
-                'Cook vegetables with spices.',
-                'Add rice and cook until done.'
-            ]
-        },
-        {
-            id: 2,
-            name: 'Chocolate Cake',
-            category: 'Dessert',
-            status: 'Draft',
-            description: 'A soft and tasty chocolate cake.',
-            ingredients: [
-                { name: 'Flour', quantity: '2', unit: 'cups', preparationNote: '' },
-                { name: 'Cocoa Powder', quantity: '1', unit: 'cup', preparationNote: '' }
-            ],
-            instructions: [
-                'Mix all dry ingredients.',
-                'Add wet ingredients and mix.',
-                'Bake until fully cooked.'
-            ]
-        },
-        {
-            id: 3,
-            name: 'Paneer Butter Masala',
-            category: 'Indian',
-            status: 'Pending',
-            description: 'Creamy paneer butter masala.',
-            ingredients: [
-                { name: 'Paneer', quantity: '200', unit: 'grams', preparationNote: 'Cubed' }
-            ],
-            instructions: [
-                'Prepare the tomato gravy.',
-                'Add paneer and cook.'
-            ]
-        },
-        {
-            id: 4,
-            name: 'Mango Ice Cream',
-            category: 'Dessert',
-            status: 'Rejected',
-            description: 'Homemade mango ice cream.',
-            ingredients: [
-                { name: 'Mango', quantity: '2', unit: 'pieces', preparationNote: 'Peeled' }
-            ],
-            instructions: [
-                'Blend mango into a smooth mixture.',
-                'Freeze until firm.'
-            ]
-        }
-    ]);
+    const [myRecipes, setMyRecipes] = useState(
+        () => loadMyRecipes(userEmail)
+    );
 
     const [filter, setFilter] = useState('All');
     const [editingRecipe, setEditingRecipe] = useState(null);
     const [message, setMessage] = useState('');
 
-    // Filter recipes
-    const filteredRecipes = myRecipes.filter((recipe) => {
-        if (filter === 'All') {
-            return true;
+    // Save My Recipes
+    useEffect(() => {
+        try {
+            localStorage.setItem(
+                'my-recipes',
+                JSON.stringify(myRecipes)
+            );
+        } catch (error) {
+            console.error('Unable to save My Recipes:', error);
+        }
+    }, [myRecipes]);
+
+    // Refresh when moderator data changes
+    useEffect(() => {
+        function refreshRecipes() {
+            setMyRecipes(loadMyRecipes(userEmail));
         }
 
+        window.addEventListener(
+            'moderator-recipes-updated',
+            refreshRecipes
+        );
+
+        window.addEventListener('storage', refreshRecipes);
+
+        return () => {
+            window.removeEventListener(
+                'moderator-recipes-updated',
+                refreshRecipes
+            );
+
+            window.removeEventListener('storage', refreshRecipes);
+        };
+    }, [userEmail]);
+
+    const filteredRecipes = myRecipes.filter((recipe) => {
+        if (filter === 'All') return true;
         return recipe.status === filter;
     });
 
+    const statusCounts = {
+        All: myRecipes.length,
+        Draft: myRecipes.filter((recipe) => recipe.status === 'Draft').length,
+        Pending: myRecipes.filter((recipe) => recipe.status === 'Pending').length,
+        Approved: myRecipes.filter((recipe) => recipe.status === 'Approved').length,
+        Rejected: myRecipes.filter((recipe) => recipe.status === 'Rejected').length
+    };
+
+    // Update moderator recipe data
+    function updateModeratorRecipe(updatedRecipe) {
+        try {
+            const saved = JSON.parse(
+                localStorage.getItem('moderatorRecipes') || '[]'
+            );
+
+            const moderatorRecipes = Array.isArray(saved) ? saved : [];
+
+            const existingIndex = moderatorRecipes.findIndex(
+                (recipe) =>
+                    String(recipe.id) === String(updatedRecipe.id)
+            );
+
+            let updatedModeratorRecipes;
+
+            if (existingIndex !== -1) {
+                updatedModeratorRecipes = [...moderatorRecipes];
+
+                updatedModeratorRecipes[existingIndex] = {
+                    ...moderatorRecipes[existingIndex],
+                    ...updatedRecipe,
+                    id: moderatorRecipes[existingIndex].id,
+                    submittedBy:
+                        moderatorRecipes[existingIndex].submittedBy ||
+                        updatedRecipe.submittedBy ||
+                        user?.name ||
+                        'User',
+                    dietaryTags: [...updatedRecipe.dietaryTags],
+                    allergens: [...updatedRecipe.allergens]
+                };
+            } else {
+                updatedModeratorRecipes = [
+                    ...moderatorRecipes,
+                    {
+                        ...updatedRecipe,
+                        submittedBy:
+                            updatedRecipe.submittedBy ||
+                            user?.name ||
+                            'User',
+                        submittedByEmail:
+                            updatedRecipe.submittedByEmail || userEmail,
+                        submittedById:
+                            updatedRecipe.submittedById || userEmail,
+                        dietaryTags: [...updatedRecipe.dietaryTags],
+                        allergens: [...updatedRecipe.allergens]
+                    }
+                ];
+            }
+
+            localStorage.setItem(
+                'moderatorRecipes',
+                JSON.stringify(updatedModeratorRecipes)
+            );
+
+            window.dispatchEvent(
+                new Event('moderator-recipes-updated')
+            );
+
+            return true;
+        } catch (error) {
+            console.error('Unable to update submitted recipe:', error);
+            return false;
+        }
+    }
+
     // Delete recipe
     function deleteRecipe(id) {
-
         const confirmDelete = window.confirm(
             'Are you sure you want to delete this recipe?'
         );
 
-        if (confirmDelete) {
+        if (!confirmDelete) return;
 
-            setMyRecipes((previousRecipes) =>
-                previousRecipes.filter((recipe) => recipe.id !== id)
+        try {
+            const saved = JSON.parse(
+                localStorage.getItem('moderatorRecipes') || '[]'
             );
 
-            setMessage('Recipe deleted successfully!');
+            const updated = (Array.isArray(saved) ? saved : []).filter(
+                (recipe) => String(recipe.id) !== String(id)
+            );
+
+            localStorage.setItem(
+                'moderatorRecipes',
+                JSON.stringify(updated)
+            );
+
+            window.dispatchEvent(
+                new Event('moderator-recipes-updated')
+            );
+        } catch (error) {
+            console.error('Unable to delete recipe:', error);
+            setMessage('Unable to delete the recipe from saved data.');
+            return;
         }
+
+        setMyRecipes((previousRecipes) =>
+            previousRecipes.filter(
+                (recipe) => String(recipe.id) !== String(id)
+            )
+        );
+
+        setMessage('Recipe deleted successfully!');
     }
 
     // Open edit form
     function handleEdit(recipe) {
-
         setEditingRecipe({
             ...recipe,
-            ingredients: recipe.ingredients.map((item) => ({ ...item })),
-            instructions: [...recipe.instructions]
+            cookingTime: recipe.cookingTime || recipe.time || '',
+            ingredients: (recipe.ingredients || []).map((item) =>
+                typeof item === 'string'
+                    ? {
+                        name: item,
+                        quantity: '',
+                        unit: '',
+                        preparationNote: ''
+                    }
+                    : { ...item }
+            ),
+            instructions: (recipe.instructions || []).map((step) =>
+                typeof step === 'string'
+                    ? step
+                    : step.instruction || step.text || ''
+            ),
+            image: recipe.image || '',
+            dietaryTags: Array.isArray(recipe.dietaryTags)
+                ? [...recipe.dietaryTags]
+                : [],
+            allergens: Array.isArray(recipe.allergens)
+                ? [...recipe.allergens]
+                : []
         });
 
         setMessage('');
     }
 
-    // Update recipe name, category and description
     function handleChange(e) {
-
         const { name, value } = e.target;
 
         setEditingRecipe((previous) => ({
@@ -119,11 +472,87 @@ function MyRecipes() {
         }));
     }
 
-    // Update ingredient fields
-    function handleIngredientChange(index, field, value) {
-
+    function handleDietaryChange(tag) {
         setEditingRecipe((previous) => {
+            const currentTags = previous.dietaryTags || [];
 
+            return {
+                ...previous,
+                dietaryTags: currentTags.includes(tag)
+                    ? currentTags.filter((item) => item !== tag)
+                    : [...currentTags, tag]
+            };
+        });
+    }
+
+    function handleAllergenChange(allergen) {
+        setEditingRecipe((previous) => {
+            const currentAllergens = previous.allergens || [];
+
+            return {
+                ...previous,
+                allergens: currentAllergens.includes(allergen)
+                    ? currentAllergens.filter((item) => item !== allergen)
+                    : [...currentAllergens, allergen]
+            };
+        });
+    }
+
+    // Upload and preview recipe image
+    function handleImageChange(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const allowedTypes = [
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
+            'image/webp'
+        ];
+
+        if (!allowedTypes.includes(file.type)) {
+            setMessage('Please select a JPG, JPEG, PNG, or WEBP image.');
+            e.target.value = '';
+            return;
+        }
+
+        if (file.size > 5 * 1024 * 1024) {
+            setMessage('Image size must be less than 5 MB.');
+            e.target.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = () => {
+            setEditingRecipe((previous) => ({
+                ...previous,
+                image: reader.result
+            }));
+
+            setMessage('Image selected successfully!');
+        };
+
+        reader.onerror = () => {
+            setMessage('Unable to read the selected image.');
+        };
+
+        reader.readAsDataURL(file);
+        e.target.value = '';
+    }
+
+    function removeRecipeImage() {
+        setEditingRecipe((previous) => ({
+            ...previous,
+            image: ''
+        }));
+
+        setMessage('Image removed. Save your changes to confirm.');
+    }
+
+    // Ingredient editor functions
+    function handleIngredientChange(index, field, value) {
+        setEditingRecipe((previous) => {
             const updatedIngredients = [...previous.ingredients];
 
             updatedIngredients[index] = {
@@ -138,9 +567,7 @@ function MyRecipes() {
         });
     }
 
-    // Add ingredient
     function addIngredient() {
-
         setEditingRecipe((previous) => ({
             ...previous,
             ingredients: [
@@ -155,9 +582,7 @@ function MyRecipes() {
         }));
     }
 
-    // Delete ingredient
     function deleteIngredient(index) {
-
         setEditingRecipe((previous) => ({
             ...previous,
             ingredients: previous.ingredients.filter(
@@ -166,11 +591,8 @@ function MyRecipes() {
         }));
     }
 
-    // Move ingredient up or down
     function moveIngredient(index, direction) {
-
         setEditingRecipe((previous) => {
-
             const updated = [...previous.ingredients];
             const newIndex = index + direction;
 
@@ -188,13 +610,10 @@ function MyRecipes() {
         });
     }
 
-    // Update instruction
+    // Instruction editor functions
     function handleInstructionChange(index, value) {
-
         setEditingRecipe((previous) => {
-
             const updatedInstructions = [...previous.instructions];
-
             updatedInstructions[index] = value;
 
             return {
@@ -204,21 +623,14 @@ function MyRecipes() {
         });
     }
 
-    // Add instruction
     function addInstruction() {
-
         setEditingRecipe((previous) => ({
             ...previous,
-            instructions: [
-                ...previous.instructions,
-                ''
-            ]
+            instructions: [...previous.instructions, '']
         }));
     }
 
-    // Delete instruction
     function deleteInstruction(index) {
-
         setEditingRecipe((previous) => ({
             ...previous,
             instructions: previous.instructions.filter(
@@ -227,11 +639,8 @@ function MyRecipes() {
         }));
     }
 
-    // Move instruction up or down
     function moveInstruction(index, direction) {
-
         setEditingRecipe((previous) => {
-
             const updated = [...previous.instructions];
             const newIndex = index + direction;
 
@@ -251,7 +660,6 @@ function MyRecipes() {
 
     // Save edited recipe
     function saveRecipe(e) {
-
         e.preventDefault();
 
         if (
@@ -260,6 +668,15 @@ function MyRecipes() {
             !editingRecipe.description.trim()
         ) {
             setMessage('Please fill in all required recipe fields.');
+            return;
+        }
+
+        if (
+            !editingRecipe.cookingTime ||
+            !Number.isFinite(Number(editingRecipe.cookingTime)) ||
+            Number(editingRecipe.cookingTime) <= 0
+        ) {
+            setMessage('Please enter a valid cooking time.');
             return;
         }
 
@@ -283,13 +700,25 @@ function MyRecipes() {
 
         const updatedRecipe = {
             ...editingRecipe,
+            cookingTime: editingRecipe.cookingTime,
+            image: editingRecipe.image || '',
             ingredients: validIngredients,
-            instructions: validInstructions
+            instructions: validInstructions,
+            dietaryTags: [...(editingRecipe.dietaryTags || [])],
+            allergens: [...(editingRecipe.allergens || [])]
         };
+
+        const moderatorSaveSuccess =
+            updateModeratorRecipe(updatedRecipe);
+
+        if (!moderatorSaveSuccess) {
+            setMessage('Unable to save recipe. Please try again.');
+            return;
+        }
 
         setMyRecipes((previousRecipes) =>
             previousRecipes.map((recipe) =>
-                recipe.id === updatedRecipe.id
+                String(recipe.id) === String(updatedRecipe.id)
                     ? updatedRecipe
                     : recipe
             )
@@ -299,326 +728,550 @@ function MyRecipes() {
         setMessage('Recipe updated successfully!');
     }
 
-    return (
+    function getStatusClass(status) {
+        return String(status || 'Pending').toLowerCase();
+    }
 
+    return (
         <div className="my-recipes-page">
 
-            <div className="my-recipes-header">
-                <h1>My Recipes 🍲</h1>
-                <p>Manage all the recipes you have created.</p>
-            </div>
+            {/* Hero */}
+            <section className="my-recipes-hero">
+                <div className="my-recipes-hero-content">
+                    <span className="my-recipes-eyebrow">
+                        YOUR PERSONAL RECIPE SPACE
+                    </span>
 
-            {message && (
-                <p className="my-recipes-message" role="status">
-                    {message}
-                </p>
-            )}
+                    <h1>
+                        Welcome to
+                        <span> My Kitchen.</span>
+                    </h1>
 
-            {/* Filter */}
-            <div className="my-recipes-filter">
+                    <p>
+                        Keep your creations organised, update your favourite
+                        dishes, and follow the journey of every recipe you share.
+                    </p>
 
-                <label htmlFor="recipe-status-filter">
-                    Filter by Status:
-                </label>
+                    <Link to="/create-recipe" className="my-recipes-create-link">
+                        + Create New Recipe
+                    </Link>
+                </div>
 
-                <select
-                    id="recipe-status-filter"
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                >
-                    <option value="All">All Recipes</option>
-                    <option value="Draft">Draft</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Rejected">Rejected</option>
-                </select>
-
-            </div>
-
-            {/* Edit Recipe Form */}
-            {editingRecipe && (
-
-                <form
-                    className="edit-my-recipe-form"
-                    onSubmit={saveRecipe}
-                >
-
-                    <h2>Edit Recipe</h2>
-
-                    <label>Recipe Name</label>
-
-                    <input
-                        type="text"
-                        name="name"
-                        value={editingRecipe.name}
-                        onChange={handleChange}
-                        required
+                <div className="my-recipes-hero-image">
+                    <img
+                        src="https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=1100&q=90"
+                        alt="A warm and beautiful home kitchen"
                     />
+                    <div className="my-recipes-hero-caption">
+                        Made with love
+                    </div>
+                </div>
+            </section>
 
-                    <label>Category</label>
+            <main className="my-recipes-main">
 
-                    <input
-                        type="text"
-                        name="category"
-                        value={editingRecipe.category}
-                        onChange={handleChange}
-                        required
-                    />
+                {/* Page heading */}
+                <div className="my-recipes-heading">
+                    <div>
+                        <span className="my-recipes-section-label">
+                            YOUR COLLECTION
+                        </span>
+                        <h2>My Recipes</h2>
+                        <p>Everything you've created, all in one place.</p>
+                    </div>
 
-                    <label>Description</label>
+                    <div className="my-recipes-total">
+                        <strong>{myRecipes.length}</strong>
+                        <span>Total Recipes</span>
+                    </div>
+                </div>
 
-                    <textarea
-                        name="description"
-                        value={editingRecipe.description}
-                        onChange={handleChange}
-                        rows="4"
-                        required
-                    />
-
-                    {/* Ingredient Editor */}
-                    <h3>Ingredients</h3>
-
-                    {editingRecipe.ingredients.map((ingredient, index) => (
-
-                        <div className="edit-ingredient-row" key={index}>
-
-                            <h4>Ingredient {index + 1}</h4>
-
-                            <label>Ingredient Name</label>
-
-                            <input
-                                type="text"
-                                value={ingredient.name}
-                                onChange={(e) =>
-                                    handleIngredientChange(
-                                        index,
-                                        'name',
-                                        e.target.value
-                                    )
-                                }
-                                placeholder="Enter ingredient name"
-                            />
-
-                            <label>Quantity</label>
-
-                            <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={ingredient.quantity}
-                                onChange={(e) =>
-                                    handleIngredientChange(
-                                        index,
-                                        'quantity',
-                                        e.target.value
-                                    )
-                                }
-                                placeholder="Enter quantity"
-                            />
-
-                            <label>Unit</label>
-
-                            <input
-                                type="text"
-                                value={ingredient.unit}
-                                onChange={(e) =>
-                                    handleIngredientChange(
-                                        index,
-                                        'unit',
-                                        e.target.value
-                                    )
-                                }
-                                placeholder="Example: grams, cups"
-                            />
-
-                            <label>Preparation Note</label>
-
-                            <input
-                                type="text"
-                                value={ingredient.preparationNote || ''}
-                                onChange={(e) =>
-                                    handleIngredientChange(
-                                        index,
-                                        'preparationNote',
-                                        e.target.value
-                                    )
-                                }
-                                placeholder="Example: Chopped"
-                            />
-
-                            <button
-                                type="button"
-                                onClick={() => moveIngredient(index, -1)}
-                                disabled={index === 0}
-                            >
-                                Move Up
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => moveIngredient(index, 1)}
-                                disabled={
-                                    index === editingRecipe.ingredients.length - 1
-                                }
-                            >
-                                Move Down
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => deleteIngredient(index)}
-                            >
-                                Delete Ingredient
-                            </button>
-
-                        </div>
-
-                    ))}
+                {/* Status summary */}
+                <div className="my-recipes-stats">
+                    <button
+                        type="button"
+                        className={`my-recipes-stat-card ${filter === 'All' ? 'active' : ''}`}
+                        onClick={() => setFilter('All')}
+                    >
+                        <span className="my-recipes-stat-icon">ALL</span>
+                        <span className="my-recipes-stat-number">{statusCounts.All}</span>
+                        <span className="my-recipes-stat-label">All Recipes</span>
+                    </button>
 
                     <button
                         type="button"
-                        onClick={addIngredient}
+                        className={`my-recipes-stat-card ${filter === 'Draft' ? 'active' : ''}`}
+                        onClick={() => setFilter('Draft')}
                     >
-                        + Add Ingredient
+                        <span className="my-recipes-stat-icon">DR</span>
+                        <span className="my-recipes-stat-number">{statusCounts.Draft}</span>
+                        <span className="my-recipes-stat-label">Drafts</span>
                     </button>
-
-                    {/* Instruction Editor */}
-                    <h3>Cooking Instructions</h3>
-
-                    {editingRecipe.instructions.map((step, index) => (
-
-                        <div className="edit-instruction-row" key={index}>
-
-                            <label>Step {index + 1}</label>
-
-                            <textarea
-                                value={step}
-                                onChange={(e) =>
-                                    handleInstructionChange(
-                                        index,
-                                        e.target.value
-                                    )
-                                }
-                                rows="3"
-                                placeholder="Enter cooking instruction"
-                            />
-
-                            <button
-                                type="button"
-                                onClick={() => moveInstruction(index, -1)}
-                                disabled={index === 0}
-                            >
-                                Move Up
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => moveInstruction(index, 1)}
-                                disabled={
-                                    index === editingRecipe.instructions.length - 1
-                                }
-                            >
-                                Move Down
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => deleteInstruction(index)}
-                            >
-                                Delete Step
-                            </button>
-
-                        </div>
-
-                    ))}
 
                     <button
                         type="button"
-                        onClick={addInstruction}
+                        className={`my-recipes-stat-card ${filter === 'Pending' ? 'active' : ''}`}
+                        onClick={() => setFilter('Pending')}
                     >
-                        + Add Instruction
+                        <span className="my-recipes-stat-icon">PN</span>
+                        <span className="my-recipes-stat-number">{statusCounts.Pending}</span>
+                        <span className="my-recipes-stat-label">Pending</span>
                     </button>
 
-                    {/* Form Actions */}
-                    <div className="edit-recipe-actions">
+                    <button
+                        type="button"
+                        className={`my-recipes-stat-card ${filter === 'Approved' ? 'active' : ''}`}
+                        onClick={() => setFilter('Approved')}
+                    >
+                        <span className="my-recipes-stat-icon">OK</span>
+                        <span className="my-recipes-stat-number">{statusCounts.Approved}</span>
+                        <span className="my-recipes-stat-label">Approved</span>
+                    </button>
 
-                        <button type="submit">
-                            Save Changes
-                        </button>
+                    <button
+                        type="button"
+                        className={`my-recipes-stat-card ${filter === 'Rejected' ? 'active' : ''}`}
+                        onClick={() => setFilter('Rejected')}
+                    >
+                        <span className="my-recipes-stat-icon">RJ</span>
+                        <span className="my-recipes-stat-number">{statusCounts.Rejected}</span>
+                        <span className="my-recipes-stat-label">Rejected</span>
+                    </button>
+                </div>
 
+                {message && (
+                    <div className="my-recipes-message" role="status">
+                        {message}
                         <button
                             type="button"
-                            onClick={() => {
-                                setEditingRecipe(null);
-                                setMessage('');
-                            }}
+                            onClick={() => setMessage('')}
+                            aria-label="Close message"
                         >
-                            Cancel
+                            Close
                         </button>
-
                     </div>
-
-                </form>
-            )}
-
-            {/* Recipe List */}
-            <div className="my-recipes-list">
-
-                {filteredRecipes.length === 0 ? (
-
-                    <div className="no-my-recipes">
-                        <h2>No Recipes Found</h2>
-                        <p>There are no recipes in this category.</p>
-                    </div>
-
-                ) : (
-
-                    filteredRecipes.map((recipe) => (
-
-                        <div className="my-recipe-card" key={recipe.id}>
-
-                            <div className="my-recipe-info">
-
-                                <h2>{recipe.name}</h2>
-
-                                <p>Category: {recipe.category}</p>
-
-                                <p>{recipe.description}</p>
-
-                                <span className={`my-recipe-status ${recipe.status.toLowerCase()}`}>
-                                    {recipe.status}
-                                </span>
-
-                            </div>
-
-                            <div className="my-recipe-actions">
-
-                                <button
-                                    type="button"
-                                    className="edit-my-recipe-btn"
-                                    onClick={() => handleEdit(recipe)}
-                                >
-                                    Edit
-                                </button>
-
-                                <button
-                                    type="button"
-                                    className="delete-my-recipe-btn"
-                                    onClick={() => deleteRecipe(recipe.id)}
-                                >
-                                    Delete
-                                </button>
-
-                            </div>
-
-                        </div>
-
-                    ))
-
                 )}
 
-            </div>
+                {/* Edit recipe form */}
+                {editingRecipe && (
+                    <form
+                        className="my-recipe-edit-form"
+                        onSubmit={saveRecipe}
+                    >
+                        <div className="my-recipe-edit-heading">
+                            <div>
+                                <span className="my-recipes-section-label">
+                                    RECIPE EDITOR
+                                </span>
+                                <h2>Edit Your Recipe</h2>
+                                <p>Make your changes and save your recipe.</p>
+                            </div>
 
+                            <button
+                                type="button"
+                                className="my-recipe-close-edit"
+                                onClick={() => {
+                                    setEditingRecipe(null);
+                                    setMessage('');
+                                }}
+                                aria-label="Close editor"
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        <div className="my-recipe-edit-grid">
+                            <div className="my-recipe-edit-field">
+                                <label>Recipe Name *</label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={editingRecipe.name}
+                                    onChange={handleChange}
+                                    required
+                                />
+                            </div>
+
+                            <div className="my-recipe-edit-field">
+                                <label>Category *</label>
+                                <input
+                                    type="text"
+                                    name="category"
+                                    value={editingRecipe.category}
+                                    onChange={handleChange}
+                                    required
+                                />
+                            </div>
+
+                            <div className="my-recipe-edit-field">
+                                <label>Cooking Time (minutes) *</label>
+                                <input
+                                    type="number"
+                                    name="cookingTime"
+                                    min="1"
+                                    value={editingRecipe.cookingTime || ''}
+                                    onChange={handleChange}
+                                    required
+                                />
+                            </div>
+
+                            <div className="my-recipe-edit-field my-recipe-edit-full">
+                                <label>Description *</label>
+                                <textarea
+                                    name="description"
+                                    value={editingRecipe.description}
+                                    onChange={handleChange}
+                                    rows="4"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="my-recipe-edit-subsection">
+                            <h3>Dietary Tags</h3>
+                            <p>Select all dietary categories that apply.</p>
+
+                            <div className="my-recipe-edit-options">
+                                {dietaryOptions.map((tag) => (
+                                    <label key={tag}>
+                                        <input
+                                            type="checkbox"
+                                            checked={(editingRecipe.dietaryTags || []).includes(tag)}
+                                            onChange={() => handleDietaryChange(tag)}
+                                        />
+                                        {tag}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="my-recipe-edit-subsection">
+                            <h3>Allergen Details</h3>
+                            <p>Select ingredients that may cause allergies.</p>
+
+                            <div className="my-recipe-edit-options">
+                                {allergenOptions.map((allergen) => (
+                                    <label key={allergen}>
+                                        <input
+                                            type="checkbox"
+                                            checked={(editingRecipe.allergens || []).includes(allergen)}
+                                            onChange={() => handleAllergenChange(allergen)}
+                                        />
+                                        {allergen}
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="my-recipe-edit-subsection">
+                            <h3>Recipe Image</h3>
+
+                            {isValidImage(editingRecipe.image) ? (
+                                <div className="my-recipe-edit-image">
+                                    <img
+                                        src={editingRecipe.image}
+                                        alt="Recipe preview"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={removeRecipeImage}
+                                    >
+                                        Remove Image
+                                    </button>
+                                </div>
+                            ) : (
+                                <p>
+                                    {getRecipeImage(editingRecipe)
+                                        ? 'Using the image from Explore Recipes.'
+                                        : 'No recipe image selected.'}
+                                </p>
+                            )}
+
+                            <label className="my-recipe-file-label">
+                                Choose New Image
+                                <input
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp"
+                                    onChange={handleImageChange}
+                                />
+                            </label>
+                            <small>JPG, JPEG, PNG or WEBP. Maximum size: 5 MB.</small>
+                        </div>
+
+                        {/* Ingredients */}
+                        <div className="my-recipe-edit-subsection">
+                            <h3>Ingredients</h3>
+
+                            {editingRecipe.ingredients.map((ingredient, index) => (
+                                <div className="my-recipe-editor-row" key={index}>
+                                    <div className="my-recipe-editor-row-title">
+                                        <strong>Ingredient {index + 1}</strong>
+                                        <button
+                                            type="button"
+                                            className="my-recipe-remove-row"
+                                            onClick={() => deleteIngredient(index)}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+
+                                    <div className="my-recipe-ingredient-grid">
+                                        <input
+                                            type="text"
+                                            value={ingredient.name}
+                                            onChange={(e) =>
+                                                handleIngredientChange(index, 'name', e.target.value)
+                                            }
+                                            placeholder="Ingredient name"
+                                        />
+
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="any"
+                                            value={ingredient.quantity}
+                                            onChange={(e) =>
+                                                handleIngredientChange(index, 'quantity', e.target.value)
+                                            }
+                                            placeholder="Quantity"
+                                        />
+
+                                        <input
+                                            type="text"
+                                            value={ingredient.unit}
+                                            onChange={(e) =>
+                                                handleIngredientChange(index, 'unit', e.target.value)
+                                            }
+                                            placeholder="Unit"
+                                        />
+
+                                        <input
+                                            type="text"
+                                            value={ingredient.preparationNote || ''}
+                                            onChange={(e) =>
+                                                handleIngredientChange(index, 'preparationNote', e.target.value)
+                                            }
+                                            placeholder="Preparation note"
+                                        />
+                                    </div>
+
+                                    <div className="my-recipe-row-actions">
+                                        <button
+                                            type="button"
+                                            onClick={() => moveIngredient(index, -1)}
+                                            disabled={index === 0}
+                                        >
+                                            Move Up
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => moveIngredient(index, 1)}
+                                            disabled={index === editingRecipe.ingredients.length - 1}
+                                        >
+                                            Move Down
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+
+                            <button
+                                type="button"
+                                className="my-recipe-add-row"
+                                onClick={addIngredient}
+                            >
+                                Add Ingredient
+                            </button>
+                        </div>
+
+                        {/* Instructions */}
+                        <div className="my-recipe-edit-subsection">
+                            <h3>Cooking Instructions</h3>
+
+                            {editingRecipe.instructions.map((step, index) => (
+                                <div className="my-recipe-editor-row" key={index}>
+                                    <div className="my-recipe-editor-row-title">
+                                        <strong>Step {index + 1}</strong>
+                                        <button
+                                            type="button"
+                                            className="my-recipe-remove-row"
+                                            onClick={() => deleteInstruction(index)}
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+
+                                    <textarea
+                                        value={step}
+                                        onChange={(e) =>
+                                            handleInstructionChange(index, e.target.value)
+                                        }
+                                        rows="3"
+                                        placeholder="Describe this cooking step..."
+                                    />
+
+                                    <div className="my-recipe-row-actions">
+                                        <button
+                                            type="button"
+                                            onClick={() => moveInstruction(index, -1)}
+                                            disabled={index === 0}
+                                        >
+                                            Move Up
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => moveInstruction(index, 1)}
+                                            disabled={index === editingRecipe.instructions.length - 1}
+                                        >
+                                            Move Down
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+
+                            <button
+                                type="button"
+                                className="my-recipe-add-row"
+                                onClick={addInstruction}
+                            >
+                                Add Instruction
+                            </button>
+                        </div>
+
+                        <div className="my-recipe-edit-actions">
+                            <button type="submit" className="my-recipe-save-btn">
+                                Save Changes
+                            </button>
+
+                            <button
+                                type="button"
+                                className="my-recipe-cancel-btn"
+                                onClick={() => {
+                                    setEditingRecipe(null);
+                                    setMessage('');
+                                }}
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                )}
+
+                {/* Recipe list */}
+                <div className="my-recipes-list-heading">
+                    <div>
+                        <h2>
+                            {filter === 'All' ? 'All Your Creations' : `${filter} Recipes`}
+                        </h2>
+                        <p>
+                            {filteredRecipes.length} {filteredRecipes.length === 1 ? 'recipe' : 'recipes'} found
+                        </p>
+                    </div>
+
+                    <select
+                        className="my-recipes-filter-select"
+                        value={filter}
+                        onChange={(e) => setFilter(e.target.value)}
+                        aria-label="Filter recipes by status"
+                    >
+                        <option value="All">All Recipes</option>
+                        <option value="Draft">Draft</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Approved">Approved</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                </div>
+
+                {filteredRecipes.length === 0 ? (
+                    <div className="no-my-recipes">
+                        <div
+                            className="no-my-recipes-icon"
+                            aria-hidden="true"
+                        ></div>
+
+                        <h2>No Recipes Found</h2>
+                        <p>
+                            There are no recipes in this category yet.
+                            Start creating something delicious!
+                        </p>
+                        <Link to="/create-recipe" className="my-recipes-create-link">
+                            Create Your First Recipe
+                        </Link>
+                    </div>
+                ) : (
+                    <div className="my-recipes-grid">
+                        {filteredRecipes.map((recipe) => (
+                            <article className="my-recipe-card" key={recipe.id}>
+                                <div className="my-recipe-card-image">
+                                    {getRecipeImage(recipe) ? (
+                                        <img
+                                            src={getRecipeImage(recipe)}
+                                            alt={recipe.name}
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="my-recipe-image-placeholder">
+                                            <span>No image available</span>
+                                        </div>
+                                    )}
+
+                                    <span className={`my-recipe-status ${getStatusClass(recipe.status)}`}>
+                                        {recipe.status || 'Pending'}
+                                    </span>
+                                </div>
+
+                                <div className="my-recipe-card-content">
+                                    <span className="my-recipe-category">
+                                        {recipe.category || 'Recipe'}
+                                    </span>
+
+                                    <h3>{recipe.name}</h3>
+
+                                    <p className="my-recipe-description">
+                                        {recipe.description || 'A delicious recipe waiting to be discovered.'}
+                                    </p>
+
+                                    <div className="my-recipe-card-meta">
+                                        <span>
+                                            Time: {recipe.cookingTime || recipe.time || '—'} min
+                                        </span>
+                                        <span>
+                                            Ingredients: {(recipe.ingredients || []).length}
+                                        </span>
+                                    </div>
+
+                                    {recipe.reason && (
+                                        <div className="my-recipe-reason">
+                                            <strong>Moderator feedback:</strong>
+                                            <p>{recipe.reason}</p>
+                                        </div>
+                                    )}
+
+                                    <div className="my-recipe-card-actions">
+                                        <button
+                                            type="button"
+                                            className="my-recipe-edit-btn"
+                                            onClick={() => handleEdit(recipe)}
+                                        >
+                                            Edit Recipe
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="my-recipe-delete-btn"
+                                            onClick={() => deleteRecipe(recipe.id)}
+                                        >
+                                            Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+                )}
+
+            </main>
         </div>
     );
 }
